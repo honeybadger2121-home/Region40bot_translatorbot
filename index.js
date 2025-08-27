@@ -968,7 +968,7 @@ async function handleHelpCommand(interaction) {
       },
       { 
         name: '🔗 Useful Links', 
-        value: '[GitHub Repository](https://github.com/honeybadger2121-home/Region40bot_translatorbot)\n[Setup Guide](https://github.com/honeybadger2121-home/Region40bot_translatorbot/blob/main/SETUP.md)\n[Full Documentation](https://github.com/honeybadger2121-home/Region40bot_translatorbot/blob/main/README.md)' 
+        value: '[Add Bot to Server](https://discord.com/oauth2/authorize?client_id=1410037675368648704&permissions=8589935616&scope=bot%20applications.commands)\n[GitHub Repository](https://github.com/honeybadger2121-home/Region40bot_translatorbot)\n[Setup Guide](https://github.com/honeybadger2121-home/Region40bot_translatorbot/blob/main/SETUP.md)\n[Full Documentation](https://github.com/honeybadger2121-home/Region40bot_translatorbot/blob/main/README.md)' 
       }
     ])
     .setColor(0x9932CC)

@@ -81,10 +81,11 @@ DASH_ALLOW_IPS=127.0.0.1,::1
    - ✅ Message Content Intent
    - ✅ Presence Intent (optional)
 
-4. Invite the bot with this URL template:
+4. Invite the bot with this URL:
 ```
-https://discord.com/oauth2/authorize?client_id=YOUR_BOT_CLIENT_ID&permissions=8589935616&scope=bot%20applications.commands
+https://discord.com/oauth2/authorize?client_id=1410037675368648704&permissions=8589935616&scope=bot%20applications.commands
 ```
+**Or use this clickable link:** [Add Bot to Server](https://discord.com/oauth2/authorize?client_id=1410037675368648704&permissions=8589935616&scope=bot%20applications.commands)
 
 ### 5. Running the Bot
 

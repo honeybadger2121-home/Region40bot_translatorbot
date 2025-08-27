@@ -35,9 +35,12 @@ npm run both
 - URL: http://localhost:3001
 - Login: admin / supersecret
 
-## 🔗 Bot Invitation URL Template
+## 🔗 Bot Invitation URL
+**Direct Link:** [Add Bot to Your Server](https://discord.com/oauth2/authorize?client_id=1410037675368648704&permissions=8589935616&scope=bot%20applications.commands)
+
+**Or copy this URL:**
 ```
-https://discord.com/oauth2/authorize?client_id=YOUR_BOT_CLIENT_ID&permissions=8589935616&scope=bot%20applications.commands
+https://discord.com/oauth2/authorize?client_id=1410037675368648704&permissions=8589935616&scope=bot%20applications.commands
 ```
 
 ## 📋 Required Discord Bot Permissions

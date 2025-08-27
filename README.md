@@ -296,7 +296,23 @@ If you encounter any issues:
 4. Check that required intents are enabled
 5. Verify database file permissions
 
-## 🔮 Roadmap
+## � Legal and Privacy
+
+This bot complies with privacy regulations and Discord's Terms of Service:
+
+- **[Privacy Policy](PRIVACY_POLICY.md)** - How we collect, use, and protect your data
+- **[Terms of Service](TERMS_OF_SERVICE.md)** - Legal terms governing bot usage
+- **Data Protection** - User data is stored locally and encrypted
+- **Open Source** - Full transparency with publicly available source code
+
+### Key Privacy Features:
+- ✅ No personal data sold or shared with third parties
+- ✅ Minimal data collection (only what's necessary for functionality)
+- ✅ User control over translation and profile settings
+- ✅ Local data storage with no cloud dependencies
+- ✅ Right to data deletion and portability
+
+## �🔮 Roadmap
 
 - [ ] Advanced voice translation with Google Cloud Speech
 - [ ] Custom language models for specific gaming terminology

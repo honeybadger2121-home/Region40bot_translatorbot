@@ -61,6 +61,12 @@ https://discord.com/oauth2/authorize?client_id=YOUR_BOT_CLIENT_ID&permissions=85
 4. `/setlang english` - Test auto-translation
 5. Right-click any message → "Translate Message"
 
+## 📋 Important Legal Documents
+Before deploying the bot, please review:
+- **[Privacy Policy](PRIVACY_POLICY.md)** - Data collection and privacy practices
+- **[Terms of Service](TERMS_OF_SERVICE.md)** - Legal terms and user responsibilities
+- Both documents should be made available to your server members
+
 ## 🆘 Troubleshooting
 - Ensure bot token is correct in .env
 - Check Discord Developer Portal for proper intents

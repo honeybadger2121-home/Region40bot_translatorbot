@@ -296,6 +296,20 @@ const commands = [
       type: 7, // CHANNEL
       description: 'Channel for mod notifications'
     }]
+  },
+  
+  // Information commands
+  {
+    name: 'privacy',
+    description: 'View the bot\'s privacy policy and data practices'
+  },
+  {
+    name: 'terms',
+    description: 'View the bot\'s terms of service'
+  },
+  {
+    name: 'help',
+    description: 'Get help with bot commands and features'
   }
 ];
 
@@ -473,6 +487,15 @@ async function handleSlashCommand(interaction) {
         break;
       case 'setup':
         await handleSetupCommand(interaction);
+        break;
+      case 'privacy':
+        await handlePrivacyCommand(interaction);
+        break;
+      case 'terms':
+        await handleTermsCommand(interaction);
+        break;
+      case 'help':
+        await handleHelpCommand(interaction);
         break;
       default:
         await interaction.reply({ content: 'Unknown command!', ephemeral: true });
@@ -848,6 +871,110 @@ async function handleSetupCommand(interaction) {
     console.error('Error updating settings:', error);
     await interaction.reply({ content: 'Error updating server settings.', ephemeral: true });
   }
+}
+
+async function handlePrivacyCommand(interaction) {
+  const embed = new EmbedBuilder()
+    .setTitle('🔒 Privacy Policy')
+    .setDescription('Our commitment to protecting your privacy and data')
+    .addFields([
+      { 
+        name: '📋 What We Collect', 
+        value: '• Discord User ID and username\n• Profile information (name, timezone, language)\n• Translation preferences\n• Usage statistics (anonymized)' 
+      },
+      { 
+        name: '🛡️ How We Protect Data', 
+        value: '• Local encrypted storage\n• No third-party data sharing\n• Minimal data collection\n• User control over settings' 
+      },
+      { 
+        name: '👤 Your Rights', 
+        value: '• Access your data\n• Correct profile information\n• Delete your data\n• Export your data' 
+      },
+      { 
+        name: '📖 Full Privacy Policy', 
+        value: '[View Complete Privacy Policy](https://github.com/honeybadger2121-home/Region40bot_translatorbot/blob/main/PRIVACY_POLICY.md)' 
+      }
+    ])
+    .setColor(0x00AE86)
+    .setTimestamp()
+    .setFooter({ text: 'Last updated: August 27, 2025' });
+  
+  await interaction.reply({ embeds: [embed], ephemeral: true });
+}
+
+async function handleTermsCommand(interaction) {
+  const embed = new EmbedBuilder()
+    .setTitle('📜 Terms of Service')
+    .setDescription('Terms and conditions for using this bot')
+    .addFields([
+      { 
+        name: '✅ Acceptable Use', 
+        value: '• Use for lawful purposes only\n• Respect other users\n• Provide accurate information\n• Follow Discord\'s Terms of Service' 
+      },
+      { 
+        name: '🚫 Prohibited Activities', 
+        value: '• Abuse or harassment\n• Sharing inappropriate content\n• Attempting to break the bot\n• Circumventing security measures' 
+      },
+      { 
+        name: '🛡️ Service Limitations', 
+        value: '• Service provided "as-is"\n• No guarantee of uptime\n• Translation accuracy may vary\n• Features subject to change' 
+      },
+      { 
+        name: '📖 Full Terms of Service', 
+        value: '[View Complete Terms](https://github.com/honeybadger2121-home/Region40bot_translatorbot/blob/main/TERMS_OF_SERVICE.md)' 
+      }
+    ])
+    .setColor(0xFFD700)
+    .setTimestamp()
+    .setFooter({ text: 'Last updated: August 27, 2025' });
+  
+  await interaction.reply({ embeds: [embed], ephemeral: true });
+}
+
+async function handleHelpCommand(interaction) {
+  const embed = new EmbedBuilder()
+    .setTitle('🤖 Bot Help & Commands')
+    .setDescription('Complete guide to bot features and commands')
+    .addFields([
+      { 
+        name: '🔐 Onboarding Commands', 
+        value: '`/verify` - Start verification process\n`/profile` - Complete your profile\n`/alliance` - Choose your alliance', 
+        inline: true 
+      },
+      { 
+        name: '🌐 Translation Commands', 
+        value: '`/setlang <language>` - Set your language\n`/getlang` - View current language\n`/autotranslate` - Server translation (Admin)', 
+        inline: true 
+      },
+      { 
+        name: '🛠️ Admin Commands', 
+        value: '`/stats` - Server statistics\n`/setup` - Configure channels\n`/autotranslate` - Translation settings', 
+        inline: true 
+      },
+      { 
+        name: '📋 Info Commands', 
+        value: '`/privacy` - Privacy policy\n`/terms` - Terms of service\n`/help` - This help message', 
+        inline: true 
+      },
+      { 
+        name: '🖱️ Context Menus', 
+        value: 'Right-click any message → "Translate Message"', 
+        inline: true 
+      },
+      { 
+        name: '🎯 Getting Started', 
+        value: '1. Use `/verify` to get verified\n2. Complete `/profile` with your info\n3. Choose `/alliance`\n4. Set `/setlang` for translations', 
+        inline: false 
+      },
+      { 
+        name: '🔗 Useful Links', 
+        value: '[GitHub Repository](https://github.com/honeybadger2121-home/Region40bot_translatorbot)\n[Setup Guide](https://github.com/honeybadger2121-home/Region40bot_translatorbot/blob/main/SETUP.md)\n[Full Documentation](https://github.com/honeybadger2121-home/Region40bot_translatorbot/blob/main/README.md)' 
+      }
+    ])
+    .setColor(0x9932CC)
+    .setTimestamp();
+  
+  await interaction.reply({ embeds: [embed], ephemeral: true });
 }
 
 // Button handler

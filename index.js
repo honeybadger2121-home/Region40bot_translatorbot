@@ -632,55 +632,72 @@ client.on('messageCreate', async (message) => {
   if (!message.guild || !message.content.trim()) return;
   
   try {
-    // Get all users in the guild who have auto-translate enabled
+    // Get guild members first to ensure we only work with current guild members
+    const guildMembers = await message.guild.members.fetch();
+    const guildMemberIds = Array.from(guildMembers.keys());
+    
+    if (guildMemberIds.length === 0) return;
+    
+    // Get only users who are in THIS guild AND have auto-translate enabled
+    const placeholders = guildMemberIds.map(() => '?').join(',');
     const allProfiles = await new Promise((resolve, reject) => {
-      db.all(`SELECT userId, language FROM profiles WHERE autoTranslate = 1 AND language IS NOT NULL`, [], (err, rows) => {
-        if (err) reject(err);
-        else resolve(rows || []);
-      });
+      db.all(
+        `SELECT userId, language FROM profiles 
+         WHERE autoTranslate = 1 
+         AND language IS NOT NULL 
+         AND userId IN (${placeholders})`, 
+        guildMemberIds, 
+        (err, rows) => {
+          if (err) reject(err);
+          else resolve(rows || []);
+        }
+      );
     });
     
-    // Filter to only users who are in this guild
-    const guildMembers = await message.guild.members.fetch();
+    // Filter out the message sender
     const usersWithAutoTranslate = allProfiles.filter(profile => 
-      guildMembers.has(profile.userId) && profile.userId !== message.author.id // Don't translate for the sender
+      profile.userId !== message.author.id
     );
+    
+    console.log(`Guild: ${message.guild.name}, Channel: #${message.channel.name}`);
+    console.log(`Users with auto-translate in this guild: ${usersWithAutoTranslate.length}`);
+    console.log(`Languages needed: ${usersWithAutoTranslate.map(u => u.language).join(', ')}`);
     
     if (usersWithAutoTranslate.length > 0) {
       const detectedLang = await detectLanguage(message.content);
+      console.log(`Detected language: ${detectedLang}`);
       
-      // Create translations for each user's preferred language
-      const languagesNeeded = [...new Set(usersWithAutoTranslate.map(u => u.language))];
-      
-      for (const targetLang of languagesNeeded) {
+      // Create translations for each user individually
+      for (const userProfile of usersWithAutoTranslate) {
+        const targetLang = userProfile.language;
+        
         // Skip if detected language matches target language
-        if (detectedLang === targetLang) continue;
+        if (detectedLang === targetLang) {
+          console.log(`Skipping translation for user ${userProfile.userId} - same language (${detectedLang})`);
+          continue;
+        }
         
         const translated = await translate(message.content, targetLang);
         
         // Only send translation if it's actually different from the original
         if (translated && translated.toLowerCase() !== message.content.toLowerCase()) {
-          const usersForThisLang = usersWithAutoTranslate.filter(u => u.language === targetLang);
-          
-          // Send private DM to each user who wants this language
-          for (const userProfile of usersForThisLang) {
-            try {
-              const user = await client.users.fetch(userProfile.userId);
-              
-              const translationEmbed = new EmbedBuilder()
-                .setAuthor({ 
-                  name: `${message.author.username} in #${message.channel.name}`,
-                  iconURL: message.author.displayAvatarURL()
-                })
-                .setDescription(`**Original (${detectedLang}):** ${message.content}\n\n**Translation (${targetLang}):** ${translated}`)
-                .setColor(0x00AE86)
-                .setTimestamp()
-                .setFooter({ text: `Auto-translation from ${message.guild.name}` });
-              
-              await user.send({ embeds: [translationEmbed] });
-            } catch (error) {
-              console.error(`Failed to send translation DM to user ${userProfile.userId}:`, error);
-            }
+          try {
+            const user = await client.users.fetch(userProfile.userId);
+            
+            const translationEmbed = new EmbedBuilder()
+              .setAuthor({ 
+                name: `${message.author.username} in #${message.channel.name}`,
+                iconURL: message.author.displayAvatarURL()
+              })
+              .setDescription(`**Original (${detectedLang}):** ${message.content}\n\n**Translation (${targetLang}):** ${translated}`)
+              .setColor(0x00AE86)
+              .setTimestamp()
+              .setFooter({ text: `Auto-translation from ${message.guild.name}` });
+            
+            await user.send({ embeds: [translationEmbed] });
+            console.log(`Sent ${detectedLang}→${targetLang} translation to ${user.username}`);
+          } catch (error) {
+            console.error(`Failed to send translation DM to user ${userProfile.userId}:`, error);
           }
         }
       }

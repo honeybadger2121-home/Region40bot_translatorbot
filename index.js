@@ -322,6 +322,11 @@ const commands = [
   
   // Information commands
   {
+    name: 'checkperms',
+    description: 'Check bot permissions and diagnose role management issues',
+    defaultMemberPermissions: '0x20' // MANAGE_GUILD
+  },
+  {
     name: 'privacy',
     description: 'View the bot\'s privacy policy and data practices'
   },
@@ -577,6 +582,9 @@ async function handleSlashCommand(interaction) {
         break;
       case 'terms':
         await handleTermsCommand(interaction);
+        break;
+      case 'checkperms':
+        await handleCheckPermsCommand(interaction);
         break;
       case 'help':
         await handleHelpCommand(interaction);
@@ -930,6 +938,15 @@ async function handleStatsCommand(interaction) {
 
 async function handleManageCommand(interaction) {
   try {
+    // Check bot permissions first
+    const botMember = interaction.guild.members.cache.get(interaction.client.user.id);
+    if (!botMember.permissions.has(PermissionsBitField.Flags.ManageRoles)) {
+      return interaction.reply({ 
+        content: '❌ I don\'t have permission to manage roles. Please give me the "Manage Roles" permission.', 
+        flags: MessageFlags.Ephemeral 
+      });
+    }
+    
     const targetUser = interaction.options.getUser('user');
     const action = interaction.options.getString('action');
     const member = interaction.guild.members.cache.get(targetUser.id);
@@ -939,6 +956,14 @@ async function handleManageCommand(interaction) {
     }
     
     const notOnboardedRole = interaction.guild.roles.cache.find(role => role.name === 'not-onboarded');
+    
+    // Check if the bot's role is higher than the target role
+    if (notOnboardedRole && botMember.roles.highest.position <= notOnboardedRole.position) {
+      return interaction.reply({ 
+        content: '❌ My role is not high enough to manage the "not-onboarded" role. Please move my role above it in the server settings.', 
+        flags: MessageFlags.Ephemeral 
+      });
+    }
     
     switch (action) {
       case 'add_role':
@@ -950,8 +975,13 @@ async function handleManageCommand(interaction) {
           return interaction.reply({ content: '❌ User already has the "not-onboarded" role.', flags: MessageFlags.Ephemeral });
         }
         
-        await member.roles.add(notOnboardedRole, `Added by ${interaction.user.username}`);
-        await interaction.reply({ content: `✅ Added "not-onboarded" role to ${targetUser.username}.`, flags: MessageFlags.Ephemeral });
+        try {
+          await member.roles.add(notOnboardedRole, `Added by ${interaction.user.username}`);
+          await interaction.reply({ content: `✅ Added "not-onboarded" role to ${targetUser.username}.`, flags: MessageFlags.Ephemeral });
+        } catch (roleError) {
+          console.error('Error adding role:', roleError);
+          await interaction.reply({ content: '❌ Failed to add role. Please check my permissions and role hierarchy.', flags: MessageFlags.Ephemeral });
+        }
         break;
         
       case 'remove_role':
@@ -959,14 +989,24 @@ async function handleManageCommand(interaction) {
           return interaction.reply({ content: '❌ User does not have the "not-onboarded" role.', flags: MessageFlags.Ephemeral });
         }
         
-        await member.roles.remove(notOnboardedRole, `Removed by ${interaction.user.username}`);
-        await interaction.reply({ content: `✅ Removed "not-onboarded" role from ${targetUser.username}.`, flags: MessageFlags.Ephemeral });
+        try {
+          await member.roles.remove(notOnboardedRole, `Removed by ${interaction.user.username}`);
+          await interaction.reply({ content: `✅ Removed "not-onboarded" role from ${targetUser.username}.`, flags: MessageFlags.Ephemeral });
+        } catch (roleError) {
+          console.error('Error removing role:', roleError);
+          await interaction.reply({ content: '❌ Failed to remove role. Please check my permissions and role hierarchy.', flags: MessageFlags.Ephemeral });
+        }
         break;
         
       case 'reset_verification':
         await dbHelpers.setUserProfile(targetUser.id, { verified: 0 });
         if (notOnboardedRole && !member.roles.cache.has(notOnboardedRole.id)) {
-          await member.roles.add(notOnboardedRole, `Verification reset by ${interaction.user.username}`);
+          try {
+            await member.roles.add(notOnboardedRole, `Verification reset by ${interaction.user.username}`);
+          } catch (roleError) {
+            console.error('Error adding role during reset:', roleError);
+            return interaction.reply({ content: '⚠️ Reset verification in database, but failed to add "not-onboarded" role. Please check my permissions.', flags: MessageFlags.Ephemeral });
+          }
         }
         await interaction.reply({ content: `✅ Reset verification for ${targetUser.username}. They will need to verify again.`, flags: MessageFlags.Ephemeral });
         break;
@@ -974,7 +1014,12 @@ async function handleManageCommand(interaction) {
       case 'force_verify':
         await dbHelpers.setUserProfile(targetUser.id, { verified: 1 });
         if (notOnboardedRole && member.roles.cache.has(notOnboardedRole.id)) {
-          await member.roles.remove(notOnboardedRole, `Force verified by ${interaction.user.username}`);
+          try {
+            await member.roles.remove(notOnboardedRole, `Force verified by ${interaction.user.username}`);
+          } catch (roleError) {
+            console.error('Error removing role during force verify:', roleError);
+            return interaction.reply({ content: '⚠️ Force verified in database, but failed to remove "not-onboarded" role. Please check my permissions.', flags: MessageFlags.Ephemeral });
+          }
         }
         await interaction.reply({ content: `✅ Force verified ${targetUser.username} and removed "not-onboarded" role.`, flags: MessageFlags.Ephemeral });
         break;
@@ -984,7 +1029,7 @@ async function handleManageCommand(interaction) {
     }
   } catch (error) {
     console.error('Error in manage command:', error);
-    await interaction.reply({ content: 'Error managing user onboarding status.', flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: 'Error managing user onboarding status. Please check my permissions.', flags: MessageFlags.Ephemeral });
   }
 }
 
@@ -1125,6 +1170,93 @@ async function handleTermsCommand(interaction) {
   await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
 }
 
+async function handleCheckPermsCommand(interaction) {
+  try {
+    const botMember = interaction.guild.members.cache.get(interaction.client.user.id);
+    const notOnboardedRole = interaction.guild.roles.cache.find(role => role.name === 'not-onboarded');
+    
+    const permissions = {
+      manageRoles: botMember.permissions.has(PermissionsBitField.Flags.ManageRoles),
+      manageGuild: botMember.permissions.has(PermissionsBitField.Flags.ManageGuild),
+      sendMessages: botMember.permissions.has(PermissionsBitField.Flags.SendMessages),
+      embedLinks: botMember.permissions.has(PermissionsBitField.Flags.EmbedLinks),
+      readMessageHistory: botMember.permissions.has(PermissionsBitField.Flags.ReadMessageHistory),
+      useSlashCommands: botMember.permissions.has(PermissionsBitField.Flags.UseApplicationCommands)
+    };
+    
+    const embed = new EmbedBuilder()
+      .setTitle('🔍 Bot Permission Diagnostics')
+      .setDescription('Current permission status and role management capabilities')
+      .setColor(permissions.manageRoles ? 0x00FF00 : 0xFF0000)
+      .addFields([
+        { 
+          name: '🤖 Bot Information', 
+          value: `**Bot:** ${interaction.client.user.username}\n**Highest Role:** ${botMember.roles.highest.name}\n**Role Position:** ${botMember.roles.highest.position}`,
+          inline: false
+        },
+        {
+          name: '🔑 Critical Permissions',
+          value: `${permissions.manageRoles ? '✅' : '❌'} Manage Roles\n${permissions.manageGuild ? '✅' : '❌'} Manage Server\n${permissions.sendMessages ? '✅' : '❌'} Send Messages\n${permissions.useSlashCommands ? '✅' : '❌'} Use Slash Commands`,
+          inline: true
+        },
+        {
+          name: '📋 Additional Permissions',
+          value: `${permissions.embedLinks ? '✅' : '❌'} Embed Links\n${permissions.readMessageHistory ? '✅' : '❌'} Read Message History`,
+          inline: true
+        }
+      ]);
+    
+    if (notOnboardedRole) {
+      const canManageRole = botMember.roles.highest.position > notOnboardedRole.position;
+      embed.addFields({
+        name: '🎭 "not-onboarded" Role Status',
+        value: `**Role exists:** ✅ Yes\n**Role position:** ${notOnboardedRole.position}\n**Can manage:** ${canManageRole ? '✅ Yes' : '❌ No (role hierarchy issue)'}\n**Members with role:** ${notOnboardedRole.members.size}`,
+        inline: false
+      });
+    } else {
+      embed.addFields({
+        name: '🎭 "not-onboarded" Role Status',
+        value: '❌ Role does not exist (will be created when a new member joins)',
+        inline: false
+      });
+    }
+    
+    // Add troubleshooting section
+    const issues = [];
+    if (!permissions.manageRoles) {
+      issues.push('• Enable "Manage Roles" permission');
+    }
+    if (notOnboardedRole && botMember.roles.highest.position <= notOnboardedRole.position) {
+      issues.push('• Move bot role above "not-onboarded" role in Server Settings > Roles');
+    }
+    
+    if (issues.length > 0) {
+      embed.addFields({
+        name: '🔧 Required Actions',
+        value: issues.join('\n'),
+        inline: false
+      });
+      
+      embed.addFields({
+        name: '🔗 Quick Fix',
+        value: '[Re-invite bot with proper permissions](https://discord.com/oauth2/authorize?client_id=1410037675368648704&permissions=8858371072&scope=bot%20applications.commands)',
+        inline: false
+      });
+    } else {
+      embed.addFields({
+        name: '✅ Status',
+        value: 'All permissions are properly configured! Role management should work correctly.',
+        inline: false
+      });
+    }
+    
+    await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
+  } catch (error) {
+    console.error('Error checking permissions:', error);
+    await interaction.reply({ content: 'Error checking bot permissions.', flags: MessageFlags.Ephemeral });
+  }
+}
+
 async function handleHelpCommand(interaction) {
   const embed = new EmbedBuilder()
     .setTitle('🤖 Bot Help & Commands')
@@ -1162,7 +1294,7 @@ async function handleHelpCommand(interaction) {
       },
       { 
         name: '🔗 Useful Links', 
-        value: '[Add Bot to Server](https://discord.com/oauth2/authorize?client_id=1410037675368648704&permissions=8589935616&scope=bot%20applications.commands)\n[GitHub Repository](https://github.com/honeybadger2121-home/Region40bot_translatorbot)\n[Setup Guide](https://github.com/honeybadger2121-home/Region40bot_translatorbot/blob/main/SETUP.md)\n[Full Documentation](https://github.com/honeybadger2121-home/Region40bot_translatorbot/blob/main/README.md)' 
+        value: '[Add Bot to Server](https://discord.com/oauth2/authorize?client_id=1410037675368648704&permissions=8858371072&scope=bot%20applications.commands)\n[GitHub Repository](https://github.com/honeybadger2121-home/Region40bot_translatorbot)\n[Setup Guide](https://github.com/honeybadger2121-home/Region40bot_translatorbot/blob/main/SETUP.md)\n[Full Documentation](https://github.com/honeybadger2121-home/Region40bot_translatorbot/blob/main/README.md)' 
       }
     ])
     .setColor(0x9932CC)

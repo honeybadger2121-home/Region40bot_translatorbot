@@ -709,7 +709,8 @@ client.on('messageCreate', async (message) => {
       const detectedLang = await detectLanguage(message.content);
       logTranslation(`Detected language: ${detectedLang}`);
       
-      // Create translations for each user individually
+      // Group users by target language to reduce message count
+      const usersByLanguage = {};
       for (const userProfile of usersWithAutoTranslate) {
         const targetLang = userProfile.language;
         
@@ -719,27 +720,50 @@ client.on('messageCreate', async (message) => {
           continue;
         }
         
+        if (!usersByLanguage[targetLang]) {
+          usersByLanguage[targetLang] = [];
+        }
+        usersByLanguage[targetLang].push(userProfile);
+      }
+      
+      // Create one translation message per language
+      for (const [targetLang, users] of Object.entries(usersByLanguage)) {
         const translated = await translate(message.content, targetLang);
         
         // Only send translation if it's actually different from the original
         if (translated && translated.toLowerCase() !== message.content.toLowerCase()) {
           try {
-            const user = await client.users.fetch(userProfile.userId);
+            const mentions = users.map(u => `<@${u.userId}>`).join(' ');
             
             const translationEmbed = new EmbedBuilder()
               .setAuthor({ 
-                name: `${message.author.username} in #${message.channel.name}`,
+                name: `Translation (${detectedLang} → ${targetLang})`,
                 iconURL: message.author.displayAvatarURL()
               })
-              .setDescription(`**Original (${detectedLang}):** ${message.content}\n\n**Translation (${targetLang}):** ${translated}`)
+              .setDescription(`**${message.author.username}:** ${translated}`)
               .setColor(0x00AE86)
               .setTimestamp()
-              .setFooter({ text: `Auto-translation from ${message.guild.name}` });
+              .setFooter({ text: `Auto-translation • Will disappear in 30s` });
             
-            await user.send({ embeds: [translationEmbed] });
-            logTranslation(`Sent ${detectedLang}→${targetLang} translation to ${user.username}`);
+            // Send as reply to original message with mentions
+            const translationMessage = await message.reply({ 
+              content: mentions, 
+              embeds: [translationEmbed] 
+            });
+            
+            // Delete the translation message after 30 seconds to keep channel clean
+            setTimeout(async () => {
+              try {
+                await translationMessage.delete();
+              } catch (deleteError) {
+                logTranslation(`Could not delete translation message: ${deleteError.message}`);
+              }
+            }, 30000);
+            
+            const usernames = users.map(u => u.userId).join(', ');
+            logTranslation(`Sent ${detectedLang}→${targetLang} translation in channel for users: ${usernames}`);
           } catch (error) {
-            logTranslation(`Failed to send translation DM to user ${userProfile.userId}: ${error.message}`);
+            logTranslation(`Failed to send translation in channel for ${targetLang}: ${error.message}`);
           }
         }
       }

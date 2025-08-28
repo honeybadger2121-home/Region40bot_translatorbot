@@ -722,12 +722,13 @@ async function handleAllianceCommand(interaction) {
     .setCustomId('alliance_select')
     .setPlaceholder('Choose your alliance...')
     .addOptions([
-      { label: '⚔️ Warriors Alliance', value: 'warriors', description: 'For brave fighters' },
-      { label: '🔮 Mages Guild', value: 'mages', description: 'For magical practitioners' },
-      { label: '🏹 Rangers Order', value: 'rangers', description: 'For skilled archers' },
-      { label: '🛡️ Defenders Union', value: 'defenders', description: 'For protectors' },
-      { label: '🗡️ Assassins Creed', value: 'assassins', description: 'For stealth experts' },
-      { label: '💰 Merchants League', value: 'merchants', description: 'For traders' }
+      { label: 'ANQA', value: 'anqa', description: 'ANQA Alliance' },
+      { label: 'SPBG', value: 'spbg', description: 'SPBG Alliance' },
+      { label: 'MGXT', value: 'mgxt', description: 'MGXT Alliance' },
+      { label: '1ARK', value: '1ark', description: '1ARK Alliance' },
+      { label: 'JAXA', value: 'jaxa', description: 'JAXA Alliance' },
+      { label: 'JAX2', value: 'jax2', description: 'JAX2 Alliance' },
+      { label: 'ANK', value: 'ank', description: 'ANK Alliance' }
     ]);
   
   const row = new ActionRowBuilder().addComponents(selectMenu);
@@ -965,6 +966,52 @@ async function handleStatsCommand(interaction) {
   }
 }
 
+// Helper function to clear alliance data and roles
+async function clearUserAlliance(interaction, member) {
+  const allianceRoleNames = [
+    'ANQA',
+    'SPBG', 
+    'MGXT',
+    '1ARK',
+    'JAXA',
+    'JAX2',
+    'ANK'
+  ];
+  
+  // Clear alliance from database
+  await dbHelpers.updateUserProfile(member.user.id, { alliance: null });
+  
+  // Remove any alliance roles the user might have
+  const removedRoles = [];
+  for (const roleName of allianceRoleNames) {
+    const role = interaction.guild.roles.cache.find(r => r.name === roleName);
+    if (role && member.roles.cache.has(role.id)) {
+      try {
+        await member.roles.remove(role, 'Alliance cleared during verification reset');
+        removedRoles.push(roleName);
+      } catch (roleError) {
+        console.error(`Error removing alliance role ${roleName}:`, roleError);
+      }
+    }
+  }
+  
+  // Remove alliance tag from nickname
+  try {
+    const currentNickname = member.nickname || member.user.displayName;
+    // Remove alliance tag (anything in parentheses at the start)
+    const cleanNickname = currentNickname.replace(/^\([A-Z0-9]{3,4}\)\s*/, '');
+    if (cleanNickname !== currentNickname) {
+      await member.setNickname(cleanNickname, 'Alliance tag removed during verification reset');
+      // Update database with clean nickname
+      await dbHelpers.updateUserProfile(member.user.id, { nickname: cleanNickname });
+    }
+  } catch (nicknameError) {
+    console.error('Error clearing alliance tag from nickname:', nicknameError);
+  }
+  
+  return removedRoles;
+}
+
 async function handleManageCommand(interaction) {
   try {
     // Check bot permissions first
@@ -1020,15 +1067,18 @@ async function handleManageCommand(interaction) {
         
         try {
           await member.roles.remove(notOnboardedRole, `Removed by ${interaction.user.username}`);
-          await interaction.reply({ content: `✅ Removed "not-onboarded" role from ${targetUser.username}.`, flags: MessageFlags.Ephemeral });
+          return interaction.reply({ content: `✅ Removed "not-onboarded" role from ${targetUser.username}.`, flags: MessageFlags.Ephemeral });
         } catch (roleError) {
           console.error('Error removing role:', roleError);
-          await interaction.reply({ content: '❌ Failed to remove role. Please check my permissions and role hierarchy.', flags: MessageFlags.Ephemeral });
+          return interaction.reply({ content: '❌ Failed to remove role. Please check my permissions and role hierarchy.', flags: MessageFlags.Ephemeral });
         }
-        break;
         
       case 'reset_verification':
         await dbHelpers.setUserProfile(targetUser.id, { verified: 0 });
+        
+        // Clear alliance data and roles
+        const removedRoles = await clearUserAlliance(interaction, member);
+        
         if (notOnboardedRole && !member.roles.cache.has(notOnboardedRole.id)) {
           try {
             await member.roles.add(notOnboardedRole, `Verification reset by ${interaction.user.username}`);
@@ -1037,8 +1087,13 @@ async function handleManageCommand(interaction) {
             return interaction.reply({ content: '⚠️ Reset verification in database, but failed to add "not-onboarded" role. Please check my permissions.', flags: MessageFlags.Ephemeral });
           }
         }
-        await interaction.reply({ content: `✅ Reset verification for ${targetUser.username}. They will need to verify again.`, flags: MessageFlags.Ephemeral });
-        break;
+        
+        let responseMessage = `✅ Reset verification for ${targetUser.username}. They will need to verify again.`;
+        if (removedRoles.length > 0) {
+          responseMessage += `\n🔄 Removed alliance roles: ${removedRoles.join(', ')}`;
+        }
+        
+        return interaction.reply({ content: responseMessage, flags: MessageFlags.Ephemeral });
         
       case 'force_verify':
         await dbHelpers.setUserProfile(targetUser.id, { verified: 1 });
@@ -1050,15 +1105,18 @@ async function handleManageCommand(interaction) {
             return interaction.reply({ content: '⚠️ Force verified in database, but failed to remove "not-onboarded" role. Please check my permissions.', flags: MessageFlags.Ephemeral });
           }
         }
-        await interaction.reply({ content: `✅ Force verified ${targetUser.username} and removed "not-onboarded" role.`, flags: MessageFlags.Ephemeral });
-        break;
+        return interaction.reply({ content: `✅ Force verified ${targetUser.username} and removed "not-onboarded" role.`, flags: MessageFlags.Ephemeral });
         
       default:
-        await interaction.reply({ content: '❌ Invalid action.', flags: MessageFlags.Ephemeral });
+        return interaction.reply({ content: '❌ Invalid action.', flags: MessageFlags.Ephemeral });
     }
   } catch (error) {
     console.error('Error in manage command:', error);
-    await interaction.reply({ content: 'Error managing user onboarding status. Please check my permissions.', flags: MessageFlags.Ephemeral });
+    try {
+      await interaction.reply({ content: 'Error managing user onboarding status. Please check my permissions.', flags: MessageFlags.Ephemeral });
+    } catch (replyError) {
+      console.error('Error sending error reply:', replyError);
+    }
   }
 }
 
@@ -1206,6 +1264,7 @@ async function handleCheckPermsCommand(interaction) {
     
     const permissions = {
       manageRoles: botMember.permissions.has(PermissionsBitField.Flags.ManageRoles),
+      manageNicknames: botMember.permissions.has(PermissionsBitField.Flags.ManageNicknames),
       manageGuild: botMember.permissions.has(PermissionsBitField.Flags.ManageGuild),
       sendMessages: botMember.permissions.has(PermissionsBitField.Flags.SendMessages),
       embedLinks: botMember.permissions.has(PermissionsBitField.Flags.EmbedLinks),
@@ -1225,7 +1284,7 @@ async function handleCheckPermsCommand(interaction) {
         },
         {
           name: '🔑 Critical Permissions',
-          value: `${permissions.manageRoles ? '✅' : '❌'} Manage Roles\n${permissions.manageGuild ? '✅' : '❌'} Manage Server\n${permissions.sendMessages ? '✅' : '❌'} Send Messages\n${permissions.useSlashCommands ? '✅' : '❌'} Use Slash Commands`,
+          value: `${permissions.manageRoles ? '✅' : '❌'} Manage Roles\n${permissions.manageNicknames ? '✅' : '❌'} Manage Nicknames\n${permissions.manageGuild ? '✅' : '❌'} Manage Server\n${permissions.sendMessages ? '✅' : '❌'} Send Messages\n${permissions.useSlashCommands ? '✅' : '❌'} Use Slash Commands`,
           inline: true
         },
         {
@@ -1268,7 +1327,7 @@ async function handleCheckPermsCommand(interaction) {
       
       embed.addFields({
         name: '🔗 Quick Fix',
-        value: '[Re-invite bot with proper permissions](https://discord.com/oauth2/authorize?client_id=1410037675368648704&permissions=8858371072&scope=bot%20applications.commands)',
+        value: '[Re-invite bot with proper permissions](https://discord.com/oauth2/authorize?client_id=1410037675368648704&permissions=8992588800&scope=bot%20applications.commands)',
         inline: false
       });
     } else {
@@ -1378,6 +1437,14 @@ async function handleResetAllCommand(interaction) {
           
           // Reset verification in database
           await dbHelpers.setUserProfile(member.user.id, { verified: 0 });
+          
+          // Clear alliance data and roles
+          try {
+            await clearUserAlliance(interaction, member);
+          } catch (allianceError) {
+            errors.push(`Alliance clear failed for ${member.user.username}: ${allianceError.message}`);
+          }
+          
           successCount++;
           
           // Add role if requested and role exists
@@ -1540,7 +1607,7 @@ async function handleHelpCommand(interaction) {
       },
       { 
         name: '🔗 Useful Links', 
-        value: '[Add Bot to Server](https://discord.com/oauth2/authorize?client_id=1410037675368648704&permissions=8858371072&scope=bot%20applications.commands)\n[GitHub Repository](https://github.com/honeybadger2121-home/Region40bot_translatorbot)\n[Setup Guide](https://github.com/honeybadger2121-home/Region40bot_translatorbot/blob/main/SETUP.md)\n[Full Documentation](https://github.com/honeybadger2121-home/Region40bot_translatorbot/blob/main/README.md)' 
+        value: '[Add Bot to Server](https://discord.com/oauth2/authorize?client_id=1410037675368648704&permissions=8992588800&scope=bot%20applications.commands)\n[GitHub Repository](https://github.com/honeybadger2121-home/Region40bot_translatorbot)\n[Setup Guide](https://github.com/honeybadger2121-home/Region40bot_translatorbot/blob/main/SETUP.md)\n[Full Documentation](https://github.com/honeybadger2121-home/Region40bot_translatorbot/blob/main/README.md)' 
       }
     ])
     .setColor(0x9932CC)
@@ -1578,29 +1645,84 @@ async function handleSelectMenu(interaction) {
   if (interaction.customId === 'alliance_select') {
     const alliance = interaction.values[0];
     const allianceNames = {
-      'warriors': '⚔️ Warriors Alliance',
-      'mages': '🔮 Mages Guild',
-      'rangers': '🏹 Rangers Order',
-      'defenders': '🛡️ Defenders Union',
-      'assassins': '🗡️ Assassins Creed',
-      'merchants': '💰 Merchants League'
+      'anqa': 'ANQA',
+      'spbg': 'SPBG',
+      'mgxt': 'MGXT',
+      '1ark': '1ARK',
+      'jaxa': 'JAXA',
+      'jax2': 'JAX2',
+      'ank': 'ANK'
+    };
+    
+    const allianceTags = {
+      'anqa': 'ANQA',
+      'spbg': 'SPBG',
+      'mgxt': 'MGXT',
+      '1ark': '1ARK',
+      'jaxa': 'JAXA',
+      'jax2': 'JAX2',
+      'ank': 'ANK'
     };
     
     try {
-      await dbHelpers.updateUserProfile(interaction.user.id, { alliance });
+      const member = interaction.guild.members.cache.get(interaction.user.id);
+      const selectedAllianceName = allianceNames[alliance];
+      const selectedAllianceTag = allianceTags[alliance];
+      
+      // Remove any existing alliance roles first
+      const allAllianceRoleNames = Object.values(allianceNames);
+      for (const roleName of allAllianceRoleNames) {
+        const existingRole = interaction.guild.roles.cache.find(r => r.name === roleName);
+        if (existingRole && member.roles.cache.has(existingRole.id)) {
+          await member.roles.remove(existingRole, 'Switching alliances');
+        }
+      }
+      
+      // Find the alliance role (don't create if it doesn't exist)
+      let allianceRole = interaction.guild.roles.cache.find(role => role.name === selectedAllianceName);
+      if (!allianceRole) {
+        return interaction.reply({ 
+          content: `❌ Alliance role "${selectedAllianceName}" not found. Please contact an administrator to ensure all alliance roles are properly set up.`, 
+          flags: MessageFlags.Ephemeral 
+        });
+      }
+      
+      // Assign the alliance role
+      await member.roles.add(allianceRole, `Joined ${selectedAllianceName}`);
+      
+      // Update nickname with alliance tag
+      const currentNickname = member.nickname || member.user.displayName;
+      // Remove any existing alliance tags first (anything in parentheses at the start)
+      const cleanNickname = currentNickname.replace(/^\([A-Z0-9]{3,4}\)\s*/, '');
+      const newNickname = `(${selectedAllianceTag}) ${cleanNickname}`;
+      
+      try {
+        await member.setNickname(newNickname, `Alliance tag added: ${selectedAllianceTag}`);
+      } catch (nicknameError) {
+        console.error('Error setting nickname:', nicknameError);
+        // Continue even if nickname fails (might be due to hierarchy)
+      }
+      
+      // Update database
+      await dbHelpers.updateUserProfile(interaction.user.id, { 
+        alliance,
+        nickname: newNickname 
+      });
       
       const embed = new EmbedBuilder()
         .setTitle('🎉 Alliance Selected!')
-        .setDescription(`You have successfully joined the **${allianceNames[alliance]}**!`)
-        .setColor(0x00FF00)
+        .setDescription(`You have successfully joined the **${selectedAllianceName}**!`)
+        .setColor(parseInt(allianceRole.color.toString(16), 16) || 0x00FF00)
         .addFields([
+          { name: '🎭 Role Assigned', value: selectedAllianceName, inline: true },
+          { name: '🏷️ Tag Added', value: `(${selectedAllianceTag})`, inline: true },
           { name: 'Next Steps:', value: 'Your onboarding is now complete! Explore the server and meet your alliance members.' }
         ]);
       
       await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
     } catch (error) {
       console.error('Error setting alliance:', error);
-      await interaction.reply({ content: 'Error setting your alliance.', flags: MessageFlags.Ephemeral });
+      await interaction.reply({ content: 'Error setting your alliance. Please check that the alliance role exists and that I have permissions to manage roles and nicknames.', flags: MessageFlags.Ephemeral });
     }
   }
 }

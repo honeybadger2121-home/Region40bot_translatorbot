@@ -223,12 +223,44 @@ async function translate(text, target) {
   }
   
   try {
-    const res = await translateAPI(text, { to: target });
+    // Clean and validate target language code
+    let cleanTarget = target.toLowerCase().trim();
+    
+    // Remove any trailing punctuation or invalid characters
+    cleanTarget = cleanTarget.replace(/[^a-z]/g, '');
+    
+    // Map common language names to proper codes
+    const languageCodeMap = {
+      'english': 'en',
+      'french': 'fr',
+      'spanish': 'es',
+      'german': 'de',
+      'italian': 'it',
+      'portuguese': 'pt',
+      'russian': 'ru',
+      'japanese': 'ja',
+      'chinese': 'zh',
+      'korean': 'ko',
+      'arabic': 'ar'
+    };
+    
+    // Use mapped code if available, otherwise use cleaned input
+    const targetCode = languageCodeMap[cleanTarget] || cleanTarget;
+    
+    // Validate that we have a proper 2-letter language code
+    if (!targetCode || targetCode.length !== 2) {
+      console.error(`Invalid target language code: "${target}" -> "${targetCode}"`);
+      return text; // Return original text if invalid target
+    }
+    
+    console.log(`Translating to: ${targetCode} (from input: ${target})`);
+    
+    const res = await translateAPI(text, { to: targetCode });
     translationCache.set(cacheKey, res.text);
     return res.text;
   } catch (error) {
     console.error('Translation error:', error);
-    return text;
+    return text; // Return original text on error
   }
 }
 
@@ -384,6 +416,27 @@ const commands = [
   {
     name: 'help',
     description: 'Get help with bot commands and features'
+  },
+  {
+    name: 'testlang',
+    description: 'Test translation between languages (Admin only)',
+    defaultMemberPermissions: '0x20', // MANAGE_GUILD
+    options: [{
+      name: 'text',
+      type: 3, // STRING
+      description: 'Text to translate',
+      required: true
+    }, {
+      name: 'from',
+      type: 3, // STRING
+      description: 'Source language (e.g., fr, es, de)',
+      required: true
+    }, {
+      name: 'to',
+      type: 3, // STRING
+      description: 'Target language (e.g., en, fr, es)',
+      required: true
+    }]
   }
 ];
 
@@ -534,20 +587,24 @@ client.on('messageCreate', async (message) => {
     if (userProfile && userProfile.autoTranslate && userProfile.language) {
       const detectedLang = await detectLanguage(message.content);
       
+      // Skip translation if detected language matches target language
       if (detectedLang !== userProfile.language) {
         const translated = await translate(message.content, userProfile.language);
         
-        const translationEmbed = new EmbedBuilder()
-          .setAuthor({ 
-            name: `${message.author.username} (${detectedLang} → ${userProfile.language})`,
-            iconURL: message.author.displayAvatarURL()
-          })
-          .setDescription(translated)
-          .setColor(0x00AE86)
-          .setTimestamp()
-          .setFooter({ text: `Personal translation for ${message.author.username}` });
-        
-        await message.channel.send({ embeds: [translationEmbed] });
+        // Only send translation if it's actually different from the original
+        if (translated && translated.toLowerCase() !== message.content.toLowerCase()) {
+          const translationEmbed = new EmbedBuilder()
+            .setAuthor({ 
+              name: `${message.author.username} (${detectedLang} → ${userProfile.language})`,
+              iconURL: message.author.displayAvatarURL()
+            })
+            .setDescription(translated)
+            .setColor(0x00AE86)
+            .setTimestamp()
+            .setFooter({ text: `Personal translation for ${message.author.username}` });
+          
+          await message.channel.send({ embeds: [translationEmbed] });
+        }
         return;
       }
     }
@@ -556,20 +613,24 @@ client.on('messageCreate', async (message) => {
     if (guildSettings.autoTranslateEnabled) {
       const detectedLang = await detectLanguage(message.content);
       
+      // Skip translation if detected language matches target language
       if (detectedLang !== guildSettings.targetLanguage) {
         const translated = await translate(message.content, guildSettings.targetLanguage);
         
-        const translationEmbed = new EmbedBuilder()
-          .setAuthor({ 
-            name: `${message.author.username} (${detectedLang} → ${guildSettings.targetLanguage})`,
-            iconURL: message.author.displayAvatarURL()
-          })
-          .setDescription(translated)
-          .setColor(0x00AE86)
-          .setTimestamp()
-          .setFooter({ text: `Server-wide translation` });
-        
-        await message.channel.send({ embeds: [translationEmbed] });
+        // Only send translation if it's actually different from the original
+        if (translated && translated.toLowerCase() !== message.content.toLowerCase()) {
+          const translationEmbed = new EmbedBuilder()
+            .setAuthor({ 
+              name: `${message.author.username} (${detectedLang} → ${guildSettings.targetLanguage})`,
+              iconURL: message.author.displayAvatarURL()
+            })
+            .setDescription(translated)
+            .setColor(0x00AE86)
+            .setTimestamp()
+            .setFooter({ text: `Server-wide translation` });
+          
+          await message.channel.send({ embeds: [translationEmbed] });
+        }
       }
     }
   } catch (error) {
@@ -646,6 +707,9 @@ async function handleSlashCommand(interaction) {
         break;
       case 'help':
         await handleHelpCommand(interaction);
+        break;
+      case 'testlang':
+        await handleTestLangCommand(interaction);
         break;
       default:
         commandHandled = false; // Command not found
@@ -770,7 +834,7 @@ async function handleAllianceCommand(interaction) {
 }
 
 async function handleSetLangCommand(interaction) {
-  const langInput = interaction.options.getString('language').toLowerCase();
+  const langInput = interaction.options.getString('language').toLowerCase().trim();
   
   if (['none', 'off', 'disable', 'stop'].includes(langInput)) {
     try {
@@ -791,7 +855,32 @@ async function handleSetLangCommand(interaction) {
     }
   }
   
-  const lang = languageMap[langInput] || langInput;
+  // Clean input and get proper language code
+  let cleanInput = langInput.replace(/[^a-z]/g, ''); // Remove punctuation
+  let lang = languageMap[cleanInput] || cleanInput;
+  
+  // Validate language code
+  const validLanguageCodes = ['en', 'es', 'fr', 'de', 'it', 'pt', 'ru', 'ja', 'zh', 'ko', 'ar', 'nl', 'pl', 'sv', 'no', 'da', 'fi', 'cs', 'hu', 'ro', 'bg', 'el', 'he', 'hi', 'th', 'vi'];
+  
+  if (!validLanguageCodes.includes(lang)) {
+    // Try to find a close match
+    const possibleMatches = Object.keys(languageMap).filter(key => key.includes(cleanInput) || cleanInput.includes(key));
+    
+    if (possibleMatches.length > 0) {
+      lang = languageMap[possibleMatches[0]];
+    } else {
+      const embed = new EmbedBuilder()
+        .setTitle('❌ Invalid Language')
+        .setDescription(`"${langInput}" is not a supported language.`)
+        .addFields([
+          { name: 'Supported Languages:', value: 'English (en), French (fr), Spanish (es), German (de), Italian (it), Portuguese (pt), Russian (ru), Japanese (ja), Chinese (zh), Korean (ko), Arabic (ar)' },
+          { name: 'Usage:', value: 'Use `/setlang french` or `/setlang fr` for French' }
+        ])
+        .setColor(0xFF6B6B);
+      
+      return interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
+    }
+  }
   
   try {
     let userProfile = await dbHelpers.getUserProfile(interaction.user.id);
@@ -807,17 +896,23 @@ async function handleSetLangCommand(interaction) {
       });
     }
     
+    // Get language name for display
+    const langName = Object.keys(languageMap).find(key => languageMap[key] === lang) || lang;
+    
     const embed = new EmbedBuilder()
       .setTitle('🌐 Language Set Successfully!')
-      .setDescription(`Your preferred language has been set to **${langInput}** (${lang})`)
+      .setDescription(`Your preferred language has been set to **${langName}** (${lang})`)
       .addFields([
         { name: '✅ Auto-Translation Enabled', value: 'You will receive automatic translations in the same channel' },
         { name: '🔄 Change Language', value: 'Use `/setlang <language>` to change' },
-        { name: '🚫 Disable', value: 'Use `/setlang off` to turn off auto-translation' }
+        { name: '🚫 Disable', value: 'Use `/setlang off` to turn off auto-translation' },
+        { name: '🧪 Test Translation', value: 'Try right-clicking any message → "Translate Message"' }
       ])
       .setColor(0x00AE86);
     
     await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
+    
+    console.log(`Set language for ${interaction.user.username}: ${langInput} -> ${lang}`);
   } catch (error) {
     console.error('Error setting language:', error);
     await interaction.reply({ content: 'Error setting your language preference.', flags: MessageFlags.Ephemeral });
@@ -861,7 +956,8 @@ async function handleGetLangCommand(interaction) {
 async function handleAutoTranslateCommand(interaction) {
   const subcommand = interaction.options.getSubcommand();
   
-  if (!interaction.member.permissions.has(PermissionsBitField.Flags.ManageGuild)) {
+  // Check if interaction.member exists and has permissions
+  if (!interaction.member || !interaction.member.permissions || !interaction.member.permissions.has(PermissionsBitField.Flags.ManageGuild)) {
     return interaction.reply({ 
       content: '❌ You need "Manage Server" permission to use this command.', 
       flags: MessageFlags.Ephemeral 
@@ -1003,7 +1099,7 @@ async function clearUserAlliance(interaction, member) {
   const removedRoles = [];
   for (const roleName of allianceRoleNames) {
     const role = interaction.guild.roles.cache.find(r => r.name === roleName);
-    if (role && member.roles.cache.has(role.id)) {
+    if (role && member.roles && member.roles.cache.has(role.id)) {
       try {
         await member.roles.remove(role, 'Alliance cleared during verification reset');
         removedRoles.push(roleName);
@@ -1015,11 +1111,13 @@ async function clearUserAlliance(interaction, member) {
   
   try {
     const userProfile = await dbHelpers.getUserProfile(member.user.id);
-    const baseNickname = userProfile?.inGameName || member.displayName;
-    const cleanNickname = baseNickname.replace(/^\([A-Z0-9]{3,4}\)\s*/, '');
-    if (cleanNickname !== baseNickname) {
-      await member.setNickname(cleanNickname, 'Alliance tag removed during verification reset');
-      await dbHelpers.updateUserProfile(member.user.id, { nickname: cleanNickname });
+    if (userProfile && userProfile.inGameName) {
+      const baseNickname = userProfile.inGameName;
+      const cleanNickname = baseNickname.replace(/^\([A-Z0-9]{3,4}\)\s*/, '');
+      if (cleanNickname !== baseNickname && member.setNickname) {
+        await member.setNickname(cleanNickname, 'Alliance tag removed during verification reset');
+        await dbHelpers.updateUserProfile(member.user.id, { nickname: cleanNickname });
+      }
     }
   } catch (nicknameError) {
     console.error('Error clearing alliance tag from nickname:', nicknameError);
@@ -1039,16 +1137,40 @@ function getBaseNickname(member, userProfile) {
 // Helper function to set nickname with alliance tag
 async function setNicknameWithAlliance(member, allianceTag, userProfile) {
   try {
-    // Check if bot has permission to manage nicknames
+    // Validate guild and member objects
+    if (!member || !member.guild || !member.guild.members) {
+      console.error('Invalid member or guild object in setNicknameWithAlliance');
+      return;
+    }
+    
+    // Get bot member for permission checking
     const botMember = member.guild.members.cache.get(member.client.user.id);
+    
+    if (!botMember) {
+      console.error('Could not find bot member in guild');
+      return;
+    }
+    
+    console.log(`Attempting to set nickname for ${member.user.username} with tag ${allianceTag}`);
+    console.log(`Bot permissions: Manage Nicknames = ${botMember.permissions.has(PermissionsBitField.Flags.ManageNicknames)}`);
+    console.log(`Bot highest role: ${botMember.roles.highest.name} (position: ${botMember.roles.highest.position})`);
+    console.log(`Target user highest role: ${member.roles.highest.name} (position: ${member.roles.highest.position})`);
+    
+    // Check if bot has permission to manage nicknames
     if (!botMember.permissions.has(PermissionsBitField.Flags.ManageNicknames)) {
       console.log(`Missing "Manage Nicknames" permission in ${member.guild.name}, skipping nickname update`);
-      return null; // Return null to indicate nickname wasn't set
+      return null;
+    }
+    
+    // Check if target is server owner (can't change owner's nickname)
+    if (member.id === member.guild.ownerId) {
+      console.log(`Cannot change nickname for server owner ${member.user.username}`);
+      return null;
     }
     
     // Check if bot's role is high enough to change this member's nickname
-    if (member.roles.highest.position >= botMember.roles.highest.position && member.id !== member.guild.ownerId) {
-      console.log(`Cannot change nickname for ${member.user.username} - role hierarchy issue`);
+    if (member.roles.highest.position >= botMember.roles.highest.position) {
+      console.log(`Cannot change nickname for ${member.user.username} - role hierarchy issue (${member.roles.highest.position} >= ${botMember.roles.highest.position})`);
       return null;
     }
     
@@ -1056,18 +1178,20 @@ async function setNicknameWithAlliance(member, allianceTag, userProfile) {
     const cleanNickname = baseNickname.replace(/^\([A-Z0-9]{3,4}\)\s*/, '');
     const newNickname = `(${allianceTag}) ${cleanNickname}`;
     
+    console.log(`Setting nickname: "${member.displayName}" -> "${newNickname}"`);
+    
     await member.setNickname(newNickname, `Alliance tag added: ${allianceTag}`);
     await dbHelpers.updateUserProfile(member.user.id, { nickname: newNickname });
     
-    console.log(`Successfully set nickname for ${member.user.username}: ${newNickname}`);
+    console.log(`✅ Successfully set nickname for ${member.user.username}: ${newNickname}`);
     return newNickname;
   } catch (error) {
     if (error.code === 50013) {
-      console.log(`Missing permissions to set nickname for ${member.user.username}, continuing without nickname change`);
+      console.log(`❌ Missing permissions to set nickname for ${member.user.username}: ${error.message}`);
       return null;
     } else {
-      console.error('Error setting nickname with alliance:', error);
-      return null; // Don't throw, just continue without nickname
+      console.error(`❌ Error setting nickname for ${member.user.username}:`, error);
+      return null;
     }
   }
 }
@@ -1292,8 +1416,12 @@ async function handleOnboardingResponse(user, message) {
 
 async function handleManageCommand(interaction) {
   try {
+    if (!interaction.guild || !interaction.guild.members) {
+      return interaction.reply({ content: '❌ This command can only be used in a server.', flags: MessageFlags.Ephemeral });
+    }
+    
     const botMember = interaction.guild.members.cache.get(interaction.client.user.id);
-    if (!botMember.permissions.has(PermissionsBitField.Flags.ManageRoles)) {
+    if (!botMember || !botMember.permissions.has(PermissionsBitField.Flags.ManageRoles)) {
       return interaction.reply({ 
         content: '❌ I don\'t have permission to manage roles. Please give me the "Manage Roles" permission.', 
         flags: MessageFlags.Ephemeral 
@@ -1549,7 +1677,22 @@ async function handleTermsCommand(interaction) {
 
 async function handleCheckPermsCommand(interaction) {
   try {
+    // Check if guild and members are available
+    if (!interaction.guild || !interaction.guild.members) {
+      return interaction.reply({ 
+        content: '❌ Unable to access guild information. Please try again.', 
+        flags: MessageFlags.Ephemeral 
+      });
+    }
+
     const botMember = interaction.guild.members.cache.get(interaction.client.user.id);
+    if (!botMember) {
+      return interaction.reply({ 
+        content: '❌ Unable to find bot member in this guild.', 
+        flags: MessageFlags.Ephemeral 
+      });
+    }
+
     const notOnboardedRole = interaction.guild.roles.cache.find(role => role.name === 'not-onboarded');
     
     const permissions = {
@@ -1562,10 +1705,21 @@ async function handleCheckPermsCommand(interaction) {
       useSlashCommands: botMember.permissions.has(PermissionsBitField.Flags.UseApplicationCommands)
     };
     
+    // Get all alliance roles for hierarchy check
+    const allianceRoleNames = ['ANQA', 'SPBG', 'MGXT', '1ARK', 'JAXA', 'JAX2', 'ANK'];
+    const allianceRoles = allianceRoleNames.map(name => {
+      const role = interaction.guild.roles.cache.find(r => r.name === name);
+      return role ? {
+        name: role.name,
+        position: role.position,
+        canManage: botMember.roles.highest.position > role.position
+      } : null;
+    }).filter(Boolean);
+    
     const embed = new EmbedBuilder()
       .setTitle('🔍 Bot Permission Diagnostics')
       .setDescription('Current permission status and role management capabilities')
-      .setColor(permissions.manageRoles ? 0x00FF00 : 0xFF0000)
+      .setColor(permissions.manageRoles && permissions.manageNicknames ? 0x00FF00 : 0xFF0000)
       .addFields([
         { 
           name: '🤖 Bot Information', 
@@ -1599,12 +1753,39 @@ async function handleCheckPermsCommand(interaction) {
       });
     }
     
+    if (allianceRoles.length > 0) {
+      const allianceStatus = allianceRoles.map(role => 
+        `**${role.name}:** Position ${role.position} ${role.canManage ? '✅' : '❌'}`
+      ).join('\n');
+      
+      embed.addFields({
+        name: '🛡️ Alliance Roles Status',
+        value: allianceStatus,
+        inline: false
+      });
+    }
+    
+    // Test nickname permissions with the command user
+    const canChangeUserNickname = interaction.member.roles.highest.position < botMember.roles.highest.position && interaction.member.id !== interaction.guild.ownerId;
+    
+    embed.addFields({
+      name: '🏷️ Nickname Test',
+      value: `**Can change your nickname:** ${canChangeUserNickname ? '✅ Yes' : '❌ No'}\n**Your highest role:** ${interaction.member.roles.highest.name} (${interaction.member.roles.highest.position})\n**Bot highest role:** ${botMember.roles.highest.name} (${botMember.roles.highest.position})`,
+      inline: false
+    });
+    
     const issues = [];
     if (!permissions.manageRoles) {
       issues.push('• Enable "Manage Roles" permission');
     }
+    if (!permissions.manageNicknames) {
+      issues.push('• Enable "Manage Nicknames" permission');
+    }
     if (notOnboardedRole && botMember.roles.highest.position <= notOnboardedRole.position) {
       issues.push('• Move bot role above "not-onboarded" role in Server Settings > Roles');
+    }
+    if (allianceRoles.some(role => !role.canManage)) {
+      issues.push('• Move bot role above alliance roles in Server Settings > Roles');
     }
     
     if (issues.length > 0) {
@@ -1636,6 +1817,10 @@ async function handleCheckPermsCommand(interaction) {
 
 async function handleResetAllCommand(interaction) {
   try {
+    if (!interaction.guild || !interaction.guild.members) {
+      return interaction.reply({ content: '❌ This command can only be used in a server.', flags: MessageFlags.Ephemeral });
+    }
+    
     const confirm = interaction.options.getBoolean('confirm');
     const addRole = interaction.options.getBoolean('add_role') !== false;
     const sendDM = interaction.options.getBoolean('send_dm') || false;
@@ -1650,7 +1835,7 @@ async function handleResetAllCommand(interaction) {
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     
     const botMember = interaction.guild.members.cache.get(interaction.client.user.id);
-    if (!botMember.permissions.has(PermissionsBitField.Flags.ManageRoles) && addRole) {
+    if (!botMember || (!botMember.permissions.has(PermissionsBitField.Flags.ManageRoles) && addRole)) {
       return interaction.editReply({ 
         content: '❌ I don\'t have permission to manage roles. Please give me the "Manage Roles" permission or set `add_role` to `False`.' 
       });
@@ -1811,6 +1996,60 @@ async function handleResetAllCommand(interaction) {
   }
 }
 
+async function handleTestLangCommand(interaction) {
+  try {
+    const text = interaction.options.getString('text');
+    const fromLang = interaction.options.getString('from').toLowerCase().trim();
+    const toLang = interaction.options.getString('to').toLowerCase().trim();
+    
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    
+    // Clean language codes
+    const cleanFromLang = languageMap[fromLang] || fromLang.replace(/[^a-z]/g, '');
+    const cleanToLang = languageMap[toLang] || toLang.replace(/[^a-z]/g, '');
+    
+    console.log(`Testing translation: "${text}" from ${fromLang} (${cleanFromLang}) to ${toLang} (${cleanToLang})`);
+    
+    // Detect the actual language
+    const detectedLang = await detectLanguage(text);
+    
+    // Perform translation
+    const translated = await translate(text, cleanToLang);
+    
+    const embed = new EmbedBuilder()
+      .setTitle('🧪 Translation Test Results')
+      .setDescription('Testing translation functionality')
+      .addFields([
+        { name: '📝 Original Text', value: `\`\`\`${text}\`\`\``, inline: false },
+        { name: '🔍 Detected Language', value: detectedLang, inline: true },
+        { name: '🎯 Requested From', value: `${fromLang} → ${cleanFromLang}`, inline: true },
+        { name: '🎯 Requested To', value: `${toLang} → ${cleanToLang}`, inline: true },
+        { name: '🌐 Translated Text', value: `\`\`\`${translated}\`\`\``, inline: false }
+      ])
+      .setColor(translated !== text ? 0x00AE86 : 0xFFD700)
+      .setTimestamp();
+    
+    // Add status information
+    if (detectedLang === cleanToLang) {
+      embed.addFields({ name: '⚠️ Note', value: 'Source and target languages are the same - no translation needed', inline: false });
+    } else if (translated === text) {
+      embed.addFields({ name: '⚠️ Note', value: 'Translation returned original text - may indicate an error or identical content', inline: false });
+    } else {
+      embed.addFields({ name: '✅ Status', value: 'Translation successful!', inline: false });
+    }
+    
+    await interaction.editReply({ embeds: [embed] });
+  } catch (error) {
+    console.error('Error in test language command:', error);
+    
+    if (interaction.deferred) {
+      await interaction.editReply({ content: `Error testing translation: ${error.message}` });
+    } else {
+      await interaction.reply({ content: `Error testing translation: ${error.message}`, flags: MessageFlags.Ephemeral });
+    }
+  }
+}
+
 async function handleHelpCommand(interaction) {
   const embed = new EmbedBuilder()
     .setTitle('🤖 Bot Help & Commands')
@@ -1867,15 +2106,18 @@ async function handleButton(interaction) {
         verified: 1
       });
       
-      const member = interaction.guild.members.cache.get(interaction.user.id);
-      if (member) {
-        const notOnboardedRole = interaction.guild.roles.cache.find(role => role.name === 'not-onboarded');
-        if (notOnboardedRole && member.roles.cache.has(notOnboardedRole.id)) {
-          try {
-            await member.roles.remove(notOnboardedRole, 'Completed verification process');
-            console.log(`Removed "not-onboarded" role from ${member.user.username}`);
-          } catch (roleRemoveError) {
-            console.error('Error removing not-onboarded role:', roleRemoveError);
+      // Check if guild and member exist
+      if (interaction.guild && interaction.guild.members) {
+        const member = interaction.guild.members.cache.get(interaction.user.id);
+        if (member) {
+          const notOnboardedRole = interaction.guild.roles.cache.find(role => role.name === 'not-onboarded');
+          if (notOnboardedRole && member.roles.cache.has(notOnboardedRole.id)) {
+            try {
+              await member.roles.remove(notOnboardedRole, 'Completed verification process');
+              console.log(`Removed "not-onboarded" role from ${member.user.username}`);
+            } catch (roleRemoveError) {
+              console.error('Error removing not-onboarded role:', roleRemoveError);
+            }
           }
         }
       }
@@ -1916,7 +2158,22 @@ async function handleSelectMenu(interaction) {
     };
     
     try {
+      // Check if guild and member exist
+      if (!interaction.guild || !interaction.guild.members) {
+        return interaction.reply({ 
+          content: '❌ Unable to access guild information. Please try again.', 
+          flags: MessageFlags.Ephemeral 
+        });
+      }
+
       const member = interaction.guild.members.cache.get(interaction.user.id);
+      if (!member) {
+        return interaction.reply({ 
+          content: '❌ Unable to find your member information in this server.', 
+          flags: MessageFlags.Ephemeral 
+        });
+      }
+
       const selectedAllianceName = allianceNames[alliance];
       const selectedAllianceTag = allianceTags[alliance];
       
@@ -2022,8 +2279,47 @@ async function handleContextMenu(interaction) {
         return interaction.reply({ content: '❌ Cannot translate an empty message.', flags: MessageFlags.Ephemeral });
       }
       
-      const translated = await translate(message.content, targetLang);
       const detectedLang = await detectLanguage(message.content);
+      
+      // Check if source and target languages are the same
+      if (detectedLang === targetLang) {
+        const embed = new EmbedBuilder()
+          .setAuthor({ 
+            name: `${message.author.username} said:`,
+            iconURL: message.author.displayAvatarURL()
+          })
+          .setDescription(message.content)
+          .addFields({
+            name: `Already in ${targetLang}`,
+            value: 'No translation needed - message is already in your preferred language!'
+          })
+          .setColor(0xFFD700)
+          .setTimestamp()
+          .setFooter({ text: `Language detection for ${interaction.user.username}` });
+        
+        return interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
+      }
+      
+      const translated = await translate(message.content, targetLang);
+      
+      // Check if translation is actually different
+      if (translated.toLowerCase() === message.content.toLowerCase()) {
+        const embed = new EmbedBuilder()
+          .setAuthor({ 
+            name: `${message.author.username} said:`,
+            iconURL: message.author.displayAvatarURL()
+          })
+          .setDescription(message.content)
+          .addFields({
+            name: `Already in ${targetLang}`,
+            value: 'No translation needed - content is already in the target language!'
+          })
+          .setColor(0xFFD700)
+          .setTimestamp()
+          .setFooter({ text: `Translation check for ${interaction.user.username}` });
+        
+        return interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
+      }
       
       const embed = new EmbedBuilder()
         .setAuthor({ 

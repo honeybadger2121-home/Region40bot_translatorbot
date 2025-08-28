@@ -280,6 +280,28 @@ const commands = [
     defaultMemberPermissions: '0x20' // MANAGE_GUILD
   },
   {
+    name: 'manage',
+    description: 'Manage user onboarding status',
+    defaultMemberPermissions: '0x20', // MANAGE_GUILD
+    options: [{
+      name: 'user',
+      type: 6, // USER
+      description: 'User to manage',
+      required: true
+    }, {
+      name: 'action',
+      type: 3, // STRING
+      description: 'Action to perform',
+      required: true,
+      choices: [
+        { name: 'Add not-onboarded role', value: 'add_role' },
+        { name: 'Remove not-onboarded role', value: 'remove_role' },
+        { name: 'Reset verification', value: 'reset_verification' },
+        { name: 'Force verify', value: 'force_verify' }
+      ]
+    }]
+  },
+  {
     name: 'setup',
     description: 'Configure bot settings for this server',
     defaultMemberPermissions: '0x20', // MANAGE_GUILD
@@ -354,26 +376,88 @@ client.once('clientReady', async () => {
 client.on('guildMemberAdd', async (member) => {
   try {
     const guildSettings = await dbHelpers.getGuildSettings(member.guild.id);
-    if (!guildSettings.onboardingEnabled) return;
     
+    // Add "not-onboarded" role to new members
+    let notOnboardedRole = member.guild.roles.cache.find(role => role.name === 'not-onboarded');
+    
+    // Create the role if it doesn't exist
+    if (!notOnboardedRole) {
+      try {
+        notOnboardedRole = await member.guild.roles.create({
+          name: 'not-onboarded',
+          color: '#FF6B6B',
+          reason: 'Auto-created role for new members who need to complete onboarding',
+          permissions: []
+        });
+        console.log(`Created "not-onboarded" role in ${member.guild.name}`);
+      } catch (roleError) {
+        console.error('Error creating not-onboarded role:', roleError);
+      }
+    }
+    
+    // Assign the role to the new member
+    if (notOnboardedRole) {
+      try {
+        await member.roles.add(notOnboardedRole, 'New member needs to complete onboarding');
+        console.log(`Added "not-onboarded" role to ${member.user.username}`);
+      } catch (roleAddError) {
+        console.error('Error adding not-onboarded role:', roleAddError);
+      }
+    }
+    
+    // Always send welcome message and verification for new members
     const welcomeChannel = guildSettings.welcomeChannelId ? 
       member.guild.channels.cache.get(guildSettings.welcomeChannelId) : 
       member.guild.systemChannel;
     
     if (welcomeChannel) {
+      // Create verification challenge for the new member
+      const captcha = Math.floor(Math.random() * 9000) + 1000;
+      const mathProblem = Math.floor(captcha / 100) + (captcha % 100);
+      
       const welcomeEmbed = new EmbedBuilder()
         .setTitle('🎉 Welcome to the server!')
-        .setDescription(`Hello ${member.user.username}! Please use \`/verify\` to get started with our onboarding process.`)
+        .setDescription(`Hello ${member.user.username}! Welcome to our community. Please complete the verification below to get full access.`)
         .setColor(0x00AE86)
         .setThumbnail(member.user.displayAvatarURL())
         .addFields([
-          { name: '📋 Step 1', value: 'Complete verification with `/verify`', inline: true },
-          { name: '👤 Step 2', value: 'Fill out your profile with `/profile`', inline: true },
-          { name: '🛡️ Step 3', value: 'Choose your alliance with `/alliance`', inline: true },
+          { name: '� Step 1: Verification', value: `Please solve: **${Math.floor(captcha / 100)} + ${captcha % 100} = ?**\nClick the button below to enter your answer.` },
+          { name: '👤 Step 2: Profile', value: 'After verification, use `/profile` to set up your profile', inline: true },
+          { name: '🛡️ Step 3: Alliance', value: 'Choose your alliance with `/alliance`', inline: true },
           { name: '🌐 Optional', value: 'Set up auto-translation with `/setlang`', inline: false }
         ]);
       
-      welcomeChannel.send({ embeds: [welcomeEmbed] });
+      const verifyButton = new ActionRowBuilder()
+        .addComponents(
+          new ButtonBuilder()
+            .setCustomId(`verify_${captcha}`)
+            .setLabel('🔐 Verify Now')
+            .setStyle(ButtonStyle.Success)
+            .setEmoji('✅')
+        );
+      
+      await welcomeChannel.send({ 
+        content: `${member.user}, welcome to the server!`,
+        embeds: [welcomeEmbed], 
+        components: [verifyButton] 
+      });
+      
+      // Also send a DM with verification instructions
+      try {
+        const dmEmbed = new EmbedBuilder()
+          .setTitle('🔐 Verification Required')
+          .setDescription(`Welcome to **${member.guild.name}**! To complete your verification, please return to the server and solve the math problem posted in the welcome channel.`)
+          .addFields([
+            { name: '📍 Next Steps', value: '1. Go back to the server\n2. Find the welcome message\n3. Click the "Verify Now" button\n4. Enter the correct answer' },
+            { name: '❓ Need Help?', value: 'Contact a server moderator if you need assistance.' }
+          ])
+          .setColor(0x00AE86)
+          .setThumbnail(member.guild.iconURL());
+          
+        await member.send({ embeds: [dmEmbed] });
+      } catch (dmError) {
+        console.log(`Could not send DM to ${member.user.username}:`, dmError.message);
+      }
     }
   } catch (error) {
     console.error('Error in guildMemberAdd:', error);
@@ -481,6 +565,9 @@ async function handleSlashCommand(interaction) {
         break;
       case 'stats':
         await handleStatsCommand(interaction);
+        break;
+      case 'manage':
+        await handleManageCommand(interaction);
         break;
       case 'setup':
         await handleSetupCommand(interaction);
@@ -841,6 +928,66 @@ async function handleStatsCommand(interaction) {
   }
 }
 
+async function handleManageCommand(interaction) {
+  try {
+    const targetUser = interaction.options.getUser('user');
+    const action = interaction.options.getString('action');
+    const member = interaction.guild.members.cache.get(targetUser.id);
+    
+    if (!member) {
+      return interaction.reply({ content: '❌ User not found in this server.', flags: MessageFlags.Ephemeral });
+    }
+    
+    const notOnboardedRole = interaction.guild.roles.cache.find(role => role.name === 'not-onboarded');
+    
+    switch (action) {
+      case 'add_role':
+        if (!notOnboardedRole) {
+          return interaction.reply({ content: '❌ "not-onboarded" role not found. It will be created when a new member joins.', flags: MessageFlags.Ephemeral });
+        }
+        
+        if (member.roles.cache.has(notOnboardedRole.id)) {
+          return interaction.reply({ content: '❌ User already has the "not-onboarded" role.', flags: MessageFlags.Ephemeral });
+        }
+        
+        await member.roles.add(notOnboardedRole, `Added by ${interaction.user.username}`);
+        await interaction.reply({ content: `✅ Added "not-onboarded" role to ${targetUser.username}.`, flags: MessageFlags.Ephemeral });
+        break;
+        
+      case 'remove_role':
+        if (!notOnboardedRole || !member.roles.cache.has(notOnboardedRole.id)) {
+          return interaction.reply({ content: '❌ User does not have the "not-onboarded" role.', flags: MessageFlags.Ephemeral });
+        }
+        
+        await member.roles.remove(notOnboardedRole, `Removed by ${interaction.user.username}`);
+        await interaction.reply({ content: `✅ Removed "not-onboarded" role from ${targetUser.username}.`, flags: MessageFlags.Ephemeral });
+        break;
+        
+      case 'reset_verification':
+        await dbHelpers.setUserProfile(targetUser.id, { verified: 0 });
+        if (notOnboardedRole && !member.roles.cache.has(notOnboardedRole.id)) {
+          await member.roles.add(notOnboardedRole, `Verification reset by ${interaction.user.username}`);
+        }
+        await interaction.reply({ content: `✅ Reset verification for ${targetUser.username}. They will need to verify again.`, flags: MessageFlags.Ephemeral });
+        break;
+        
+      case 'force_verify':
+        await dbHelpers.setUserProfile(targetUser.id, { verified: 1 });
+        if (notOnboardedRole && member.roles.cache.has(notOnboardedRole.id)) {
+          await member.roles.remove(notOnboardedRole, `Force verified by ${interaction.user.username}`);
+        }
+        await interaction.reply({ content: `✅ Force verified ${targetUser.username} and removed "not-onboarded" role.`, flags: MessageFlags.Ephemeral });
+        break;
+        
+      default:
+        await interaction.reply({ content: '❌ Invalid action.', flags: MessageFlags.Ephemeral });
+    }
+  } catch (error) {
+    console.error('Error in manage command:', error);
+    await interaction.reply({ content: 'Error managing user onboarding status.', flags: MessageFlags.Ephemeral });
+  }
+}
+
 async function handleSetupCommand(interaction) {
   const verificationChannel = interaction.options.getChannel('verification_channel');
   const welcomeChannel = interaction.options.getChannel('welcome_channel');
@@ -1043,9 +1190,23 @@ async function handleModal(interaction) {
           captchaAnswer: userAnswer.toString()
         });
         
+        // Remove "not-onboarded" role upon successful verification
+        const member = interaction.guild.members.cache.get(interaction.user.id);
+        if (member) {
+          const notOnboardedRole = interaction.guild.roles.cache.find(role => role.name === 'not-onboarded');
+          if (notOnboardedRole && member.roles.cache.has(notOnboardedRole.id)) {
+            try {
+              await member.roles.remove(notOnboardedRole, 'Completed verification process');
+              console.log(`Removed "not-onboarded" role from ${member.user.username}`);
+            } catch (roleRemoveError) {
+              console.error('Error removing not-onboarded role:', roleRemoveError);
+            }
+          }
+        }
+        
         const embed = new EmbedBuilder()
           .setTitle('✅ Verification Successful!')
-          .setDescription('You have been verified! You can now:')
+          .setDescription('You have been verified and given full access to the server! You can now:')
           .addFields([
             { name: '📋 Complete Profile', value: 'Use `/profile` to fill out your information' },
             { name: '🛡️ Choose Alliance', value: 'Use `/alliance` to select your alliance' },

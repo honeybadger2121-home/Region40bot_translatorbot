@@ -737,9 +737,9 @@ async function handleSlashCommand(interaction) {
 async function handleVerifyCommand(interaction) {
   const embed = new EmbedBuilder()
     .setTitle('✅ Simple Verification')
-    .setDescription('Click the button below to complete verification and start your automated onboarding process.')
+    .setDescription('Click the button below to complete verification. After verification, you\'ll need to **send me a DM with "verify"** to start the onboarding process.')
     .setColor(0x00FF00)
-    .setFooter({ text: 'This will guide you through profile setup and alliance selection' });
+    .setFooter({ text: 'Step 1: Click button → Step 2: DM me "verify" → Step 3: Complete profile setup' });
   
   const button = new ActionRowBuilder()
     .addComponents(
@@ -1227,15 +1227,15 @@ async function startAutomatedOnboarding(user) {
     
     // Send profile setup message
     const profileEmbed = new EmbedBuilder()
-      .setTitle('✅ Verification Complete!')
-      .setDescription('Great! Now let\'s set up your profile. Please provide the following information:')
+      .setTitle('🎉 Welcome! Let\'s Get You Set Up')
+      .setDescription('Perfect! Now let\'s complete your profile setup. Please provide the following information:')
       .addFields([
         { name: '🎮 In-Game Name', value: 'What is your in-game name?' },
         { name: '🌍 Timezone/Country', value: 'What timezone/country are you in? (e.g., EST, PST, UK, Germany)' },
         { name: '🌐 Language', value: 'What is your preferred language? (e.g., English, Spanish, French)' }
       ])
       .setColor(0x00FF00)
-      .setFooter({ text: 'Please reply with: IGN | Timezone | Language (separated by | symbol)' });
+      .setFooter({ text: '⏰ Please reply with: IGN | Timezone | Language (separated by | symbol)' });
     
     await user.send({ embeds: [profileEmbed] });
     console.log(`Sent profile setup message to ${user.username}`);
@@ -2122,11 +2122,9 @@ async function handleButton(interaction) {
         }
       }
       
-      await startAutomatedOnboarding(interaction.user);
-      
       const embed = new EmbedBuilder()
         .setTitle('✅ Verification Successful!')
-        .setDescription('You have been verified! Check your DMs for the automated onboarding process.')
+        .setDescription('You have been verified! Now please **send me a DM with the word "verify"** to start your onboarding process.\n\n**Instructions:**\n1. Click on my name (Region40Bot)\n2. Send me a direct message\n3. Type: `verify`\n4. Follow the onboarding steps')
         .setColor(0x00FF00);
       
       await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });

@@ -495,12 +495,12 @@ async function handleSlashCommand(interaction) {
         await handleHelpCommand(interaction);
         break;
       default:
-        await interaction.reply({ content: 'Unknown command!', ephemeral: true });
+        await interaction.reply({ content: 'Unknown command!', flags: MessageFlags.Ephemeral });
     }
   } catch (error) {
     console.error(`Error handling command ${commandName}:`, error);
     try {
-      await interaction.reply({ content: 'An error occurred while processing your command.', ephemeral: true });
+      await interaction.reply({ content: 'An error occurred while processing your command.', flags: MessageFlags.Ephemeral });
     } catch (replyError) {
       console.error('Error sending error reply:', replyError);
     }
@@ -529,7 +529,7 @@ async function handleVerifyCommand(interaction) {
         .setEmoji('✏️')
     );
   
-  await interaction.reply({ embeds: [embed], components: [button], ephemeral: true });
+  await interaction.reply({ embeds: [embed], components: [button], flags: MessageFlags.Ephemeral });
 }
 
 async function handleProfileCommand(interaction) {
@@ -538,7 +538,7 @@ async function handleProfileCommand(interaction) {
   if (!userProfile || !userProfile.verified) {
     return interaction.reply({ 
       content: '❌ You must complete verification first! Use `/verify` to get started.', 
-      ephemeral: true 
+      flags: MessageFlags.Ephemeral 
     });
   }
   
@@ -585,7 +585,7 @@ async function handleAllianceCommand(interaction) {
   if (!userProfile || !userProfile.verified) {
     return interaction.reply({ 
       content: '❌ You must complete verification first! Use `/verify` to get started.', 
-      ephemeral: true 
+      flags: MessageFlags.Ephemeral 
     });
   }
   
@@ -608,7 +608,7 @@ async function handleAllianceCommand(interaction) {
   
   const row = new ActionRowBuilder().addComponents(selectMenu);
   
-  await interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
+  await interaction.reply({ embeds: [embed], components: [row], flags: MessageFlags.Ephemeral });
 }
 
 async function handleSetLangCommand(interaction) {
@@ -627,10 +627,10 @@ async function handleSetLangCommand(interaction) {
         .setDescription('Your auto-translation has been turned off.')
         .setColor(0xFF6B6B);
       
-      return interaction.reply({ embeds: [embed], ephemeral: true });
+      return interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
     } catch (error) {
       console.error('Error disabling translation:', error);
-      return interaction.reply({ content: 'Error disabling auto-translation.', ephemeral: true });
+      return interaction.reply({ content: 'Error disabling auto-translation.', flags: MessageFlags.Ephemeral });
     }
   }
   
@@ -662,10 +662,10 @@ async function handleSetLangCommand(interaction) {
       ])
       .setColor(0x00AE86);
     
-    await interaction.reply({ embeds: [embed], ephemeral: true });
+    await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
   } catch (error) {
     console.error('Error setting language:', error);
-    await interaction.reply({ content: 'Error setting your language preference.', ephemeral: true });
+    await interaction.reply({ content: 'Error setting your language preference.', flags: MessageFlags.Ephemeral });
   }
 }
 
@@ -684,7 +684,7 @@ async function handleGetLangCommand(interaction) {
         ])
         .setColor(0x00AE86);
       
-      await interaction.reply({ embeds: [embed], ephemeral: true });
+      await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
     } else {
       const embed = new EmbedBuilder()
         .setTitle('🌐 Language Settings')
@@ -695,11 +695,11 @@ async function handleGetLangCommand(interaction) {
         ])
         .setColor(0xFFD700);
       
-      await interaction.reply({ embeds: [embed], ephemeral: true });
+      await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
     }
   } catch (error) {
     console.error('Error getting language:', error);
-    await interaction.reply({ content: 'Error retrieving your language preference.', ephemeral: true });
+    await interaction.reply({ content: 'Error retrieving your language preference.', flags: MessageFlags.Ephemeral });
   }
 }
 
@@ -709,7 +709,7 @@ async function handleAutoTranslateCommand(interaction) {
   if (!interaction.member.permissions.has(PermissionsBitField.Flags.ManageGuild)) {
     return interaction.reply({ 
       content: '❌ You need "Manage Server" permission to use this command.', 
-      ephemeral: true 
+      flags: MessageFlags.Ephemeral 
     });
   }
   
@@ -728,14 +728,14 @@ async function handleAutoTranslateCommand(interaction) {
             .setDescription('All messages will now be automatically translated to English.')
             .setColor(0x00AE86);
           
-          await interaction.reply({ embeds: [embed], ephemeral: true });
+          await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
         } else {
           const embed = new EmbedBuilder()
             .setTitle('ℹ️ Personal Auto-Translation')
             .setDescription('Users can enable personal auto-translation using `/setlang <language>`')
             .setColor(0x00AE86);
           
-          await interaction.reply({ embeds: [embed], ephemeral: true });
+          await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
         }
         break;
         
@@ -749,7 +749,7 @@ async function handleAutoTranslateCommand(interaction) {
           .setDescription('Server-wide auto-translation has been turned off.')
           .setColor(0xFF6B6B);
         
-        await interaction.reply({ embeds: [disableEmbed], ephemeral: true });
+        await interaction.reply({ embeds: [disableEmbed], flags: MessageFlags.Ephemeral });
         break;
         
       case 'status':
@@ -773,19 +773,19 @@ async function handleAutoTranslateCommand(interaction) {
           ])
           .setColor(0x00AE86);
         
-        await interaction.reply({ embeds: [statusEmbed], ephemeral: true });
+        await interaction.reply({ embeds: [statusEmbed], flags: MessageFlags.Ephemeral });
         break;
     }
   } catch (error) {
     console.error('Auto-translate command error:', error);
-    await interaction.reply({ content: 'Error configuring auto-translation.', ephemeral: true });
+    await interaction.reply({ content: 'Error configuring auto-translation.', flags: MessageFlags.Ephemeral });
   }
 }
 
 async function handleStartVoiceCommand(interaction) {
   const memberVc = interaction.member.voice.channel;
   if (!memberVc) {
-    return interaction.reply({ content: '❌ You must be in a voice channel first!', ephemeral: true });
+    return interaction.reply({ content: '❌ You must be in a voice channel first!', flags: MessageFlags.Ephemeral });
   }
   
   // Basic voice translation setup (would need Google Cloud Speech API for full implementation)
@@ -794,7 +794,7 @@ async function handleStartVoiceCommand(interaction) {
     .setDescription('Voice translation feature is currently in development. Coming soon!')
     .setColor(0xFFD700);
   
-  await interaction.reply({ embeds: [embed], ephemeral: true });
+  await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
 }
 
 async function handleStopVoiceCommand(interaction) {
@@ -803,7 +803,7 @@ async function handleStopVoiceCommand(interaction) {
     .setDescription('Voice translation has been stopped.')
     .setColor(0xFF6B6B);
   
-  await interaction.reply({ embeds: [embed], ephemeral: true });
+  await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
 }
 
 async function handleStatsCommand(interaction) {
@@ -834,10 +834,10 @@ async function handleStatsCommand(interaction) {
       .setColor(0x00AE86)
       .setTimestamp();
     
-    await interaction.reply({ embeds: [embed], ephemeral: true });
+    await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
   } catch (error) {
     console.error('Error getting stats:', error);
-    await interaction.reply({ content: 'Error retrieving statistics.', ephemeral: true });
+    await interaction.reply({ content: 'Error retrieving statistics.', flags: MessageFlags.Ephemeral });
   }
 }
 
@@ -863,10 +863,10 @@ async function handleSetupCommand(interaction) {
     if (welcomeChannel) embed.addFields({ name: 'Welcome Channel', value: `<#${welcomeChannel.id}>` });
     if (modChannel) embed.addFields({ name: 'Mod Channel', value: `<#${modChannel.id}>` });
     
-    await interaction.reply({ embeds: [embed], ephemeral: true });
+    await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
   } catch (error) {
     console.error('Error updating settings:', error);
-    await interaction.reply({ content: 'Error updating server settings.', ephemeral: true });
+    await interaction.reply({ content: 'Error updating server settings.', flags: MessageFlags.Ephemeral });
   }
 }
 
@@ -896,7 +896,7 @@ async function handlePrivacyCommand(interaction) {
     .setTimestamp()
     .setFooter({ text: 'Last updated: August 27, 2025' });
   
-  await interaction.reply({ embeds: [embed], ephemeral: true });
+  await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
 }
 
 async function handleTermsCommand(interaction) {
@@ -925,7 +925,7 @@ async function handleTermsCommand(interaction) {
     .setTimestamp()
     .setFooter({ text: 'Last updated: August 27, 2025' });
   
-  await interaction.reply({ embeds: [embed], ephemeral: true });
+  await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
 }
 
 async function handleHelpCommand(interaction) {
@@ -971,7 +971,7 @@ async function handleHelpCommand(interaction) {
     .setColor(0x9932CC)
     .setTimestamp();
   
-  await interaction.reply({ embeds: [embed], ephemeral: true });
+  await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
 }
 
 // Button handler
@@ -1022,10 +1022,10 @@ async function handleSelectMenu(interaction) {
           { name: 'Next Steps:', value: 'Your onboarding is now complete! Explore the server and meet your alliance members.' }
         ]);
       
-      await interaction.reply({ embeds: [embed], ephemeral: true });
+      await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
     } catch (error) {
       console.error('Error setting alliance:', error);
-      await interaction.reply({ content: 'Error setting your alliance.', ephemeral: true });
+      await interaction.reply({ content: 'Error setting your alliance.', flags: MessageFlags.Ephemeral });
     }
   }
 }
@@ -1053,10 +1053,10 @@ async function handleModal(interaction) {
           ])
           .setColor(0x00FF00);
         
-        await interaction.reply({ embeds: [embed], ephemeral: true });
+        await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
       } catch (error) {
         console.error('Error verifying user:', error);
-        await interaction.reply({ content: 'Error completing verification.', ephemeral: true });
+        await interaction.reply({ content: 'Error completing verification.', flags: MessageFlags.Ephemeral });
       }
     } else {
       const embed = new EmbedBuilder()
@@ -1064,7 +1064,7 @@ async function handleModal(interaction) {
         .setDescription('Incorrect answer. Please try again with `/verify`')
         .setColor(0xFF0000);
       
-      await interaction.reply({ embeds: [embed], ephemeral: true });
+      await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
     }
   } else if (interaction.customId === 'profile_modal') {
     const inGameName = interaction.fields.getTextInputValue('ingame_name');
@@ -1094,10 +1094,10 @@ async function handleModal(interaction) {
         ])
         .setColor(0x00FF00);
       
-      await interaction.reply({ embeds: [embed], ephemeral: true });
+      await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
     } catch (error) {
       console.error('Error updating profile:', error);
-      await interaction.reply({ content: 'Error updating your profile.', ephemeral: true });
+      await interaction.reply({ content: 'Error updating your profile.', flags: MessageFlags.Ephemeral });
     }
   }
 }
@@ -1106,7 +1106,7 @@ async function handleModal(interaction) {
 async function handleContextMenu(interaction) {
   if (interaction.commandName === 'Translate Message') {
     try {
-      await interaction.deferReply({ ephemeral: true });
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
       
       const original = interaction.targetMessage.content;
       if (!original || original.trim() === '') {

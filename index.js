@@ -327,6 +327,22 @@ const commands = [
     defaultMemberPermissions: '0x20' // MANAGE_GUILD
   },
   {
+    name: 'resetall',
+    description: 'Reset verification status for all server members (Admin only)',
+    defaultMemberPermissions: '0x20', // MANAGE_GUILD
+    options: [{
+      name: 'confirm',
+      type: 5, // BOOLEAN
+      description: 'Confirm you want to reset ALL members verification status',
+      required: true
+    }, {
+      name: 'add_role',
+      type: 5, // BOOLEAN
+      description: 'Also add "not-onboarded" role to all members (default: true)',
+      required: false
+    }]
+  },
+  {
     name: 'privacy',
     description: 'View the bot\'s privacy policy and data practices'
   },
@@ -585,6 +601,9 @@ async function handleSlashCommand(interaction) {
         break;
       case 'checkperms':
         await handleCheckPermsCommand(interaction);
+        break;
+      case 'resetall':
+        await handleResetAllCommand(interaction);
         break;
       case 'help':
         await handleHelpCommand(interaction);
@@ -1254,6 +1273,173 @@ async function handleCheckPermsCommand(interaction) {
   } catch (error) {
     console.error('Error checking permissions:', error);
     await interaction.reply({ content: 'Error checking bot permissions.', flags: MessageFlags.Ephemeral });
+  }
+}
+
+async function handleResetAllCommand(interaction) {
+  try {
+    const confirm = interaction.options.getBoolean('confirm');
+    const addRole = interaction.options.getBoolean('add_role') !== false; // Default true
+    
+    if (!confirm) {
+      return interaction.reply({ 
+        content: '❌ You must set `confirm` to `True` to reset all members verification status.', 
+        flags: MessageFlags.Ephemeral 
+      });
+    }
+    
+    // Defer reply as this operation can take a while
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    
+    // Check bot permissions
+    const botMember = interaction.guild.members.cache.get(interaction.client.user.id);
+    if (!botMember.permissions.has(PermissionsBitField.Flags.ManageRoles) && addRole) {
+      return interaction.editReply({ 
+        content: '❌ I don\'t have permission to manage roles. Please give me the "Manage Roles" permission or set `add_role` to `False`.' 
+      });
+    }
+    
+    const notOnboardedRole = interaction.guild.roles.cache.find(role => role.name === 'not-onboarded');
+    
+    // Create role if it doesn't exist and we need to add it
+    if (!notOnboardedRole && addRole) {
+      try {
+        const newRole = await interaction.guild.roles.create({
+          name: 'not-onboarded',
+          color: '#FF6B6B',
+          reason: 'Auto-created for mass verification reset',
+          permissions: []
+        });
+        console.log(`Created "not-onboarded" role for mass reset in ${interaction.guild.name}`);
+      } catch (roleError) {
+        console.error('Error creating role for mass reset:', roleError);
+        return interaction.editReply({ 
+          content: '❌ Failed to create "not-onboarded" role. Please create it manually or disable role assignment.' 
+        });
+      }
+    }
+    
+    // Fetch all members to ensure we have the complete list
+    const allMembers = await interaction.guild.members.fetch();
+    const memberCount = allMembers.size;
+    let processedCount = 0;
+    let successCount = 0;
+    let roleSuccessCount = 0;
+    let errors = [];
+    
+    // Update progress embed
+    const progressEmbed = new EmbedBuilder()
+      .setTitle('🔄 Resetting All Member Verification...')
+      .setDescription('Processing all server members. This may take a few minutes.')
+      .addFields([
+        { name: 'Total Members', value: memberCount.toString(), inline: true },
+        { name: 'Progress', value: '0%', inline: true },
+        { name: 'Status', value: 'Starting...', inline: true }
+      ])
+      .setColor(0xFFD700);
+    
+    await interaction.editReply({ embeds: [progressEmbed] });
+    
+    // Process members in batches to avoid rate limits
+    const memberArray = Array.from(allMembers.values());
+    const batchSize = 10;
+    
+    for (let i = 0; i < memberArray.length; i += batchSize) {
+      const batch = memberArray.slice(i, i + batchSize);
+      
+      await Promise.all(batch.map(async (member) => {
+        try {
+          // Skip bots
+          if (member.user.bot) {
+            processedCount++;
+            return;
+          }
+          
+          // Reset verification in database
+          await dbHelpers.setUserProfile(member.user.id, { verified: 0 });
+          successCount++;
+          
+          // Add role if requested and role exists
+          if (addRole && notOnboardedRole && !member.roles.cache.has(notOnboardedRole.id)) {
+            try {
+              await member.roles.add(notOnboardedRole, `Mass verification reset by ${interaction.user.username}`);
+              roleSuccessCount++;
+            } catch (roleError) {
+              errors.push(`Role assignment failed for ${member.user.username}: ${roleError.message}`);
+            }
+          }
+          
+        } catch (error) {
+          errors.push(`Database reset failed for ${member.user.username}: ${error.message}`);
+        } finally {
+          processedCount++;
+        }
+      }));
+      
+      // Update progress every batch
+      const progress = Math.round((processedCount / memberCount) * 100);
+      const updatedEmbed = new EmbedBuilder()
+        .setTitle('🔄 Resetting All Member Verification...')
+        .setDescription('Processing all server members. This may take a few minutes.')
+        .addFields([
+          { name: 'Total Members', value: memberCount.toString(), inline: true },
+          { name: 'Progress', value: `${progress}%`, inline: true },
+          { name: 'Processed', value: `${processedCount}/${memberCount}`, inline: true }
+        ])
+        .setColor(0xFFD700);
+      
+      await interaction.editReply({ embeds: [updatedEmbed] });
+      
+      // Small delay to avoid rate limits
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+    
+    // Final results
+    const resultEmbed = new EmbedBuilder()
+      .setTitle('✅ Mass Verification Reset Complete!')
+      .setDescription('All server members have been processed.')
+      .addFields([
+        { name: '👥 Total Members', value: memberCount.toString(), inline: true },
+        { name: '✅ Database Resets', value: successCount.toString(), inline: true },
+        { name: '🎭 Role Assignments', value: addRole ? roleSuccessCount.toString() : 'Skipped', inline: true },
+        { name: '⚠️ Errors', value: errors.length.toString(), inline: true },
+        { name: '📊 Success Rate', value: `${Math.round((successCount / (memberCount - allMembers.filter(m => m.user.bot).size)) * 100)}%`, inline: true },
+        { name: '⏱️ Processing Time', value: 'Complete', inline: true }
+      ])
+      .setColor(errors.length > 0 ? 0xFF6B6B : 0x00FF00)
+      .setTimestamp();
+    
+    if (errors.length > 0 && errors.length <= 10) {
+      resultEmbed.addFields({
+        name: '❌ Error Details',
+        value: errors.slice(0, 10).join('\n').substring(0, 1024),
+        inline: false
+      });
+    } else if (errors.length > 10) {
+      resultEmbed.addFields({
+        name: '❌ Error Summary',
+        value: `${errors.length} errors occurred. Check console logs for details.`,
+        inline: false
+      });
+    }
+    
+    await interaction.editReply({ embeds: [resultEmbed] });
+    
+    // Log summary
+    console.log(`Mass verification reset completed by ${interaction.user.username} in ${interaction.guild.name}:`);
+    console.log(`- Total members: ${memberCount}`);
+    console.log(`- Database resets: ${successCount}`);
+    console.log(`- Role assignments: ${roleSuccessCount}`);
+    console.log(`- Errors: ${errors.length}`);
+    
+  } catch (error) {
+    console.error('Error in resetall command:', error);
+    
+    if (interaction.deferred) {
+      await interaction.editReply({ content: 'Error processing mass verification reset. Please try again.' });
+    } else {
+      await interaction.reply({ content: 'Error processing mass verification reset. Please try again.', flags: MessageFlags.Ephemeral });
+    }
   }
 }
 

@@ -104,6 +104,7 @@ const db = new sqlite3.Database('combined_bot.db', (err) => {
             verificationChannelId TEXT,
             welcomeChannelId TEXT,
             logChannelId TEXT,
+            devChannelId TEXT,
             onboardingRoleId TEXT
         )`);
 
@@ -394,6 +395,10 @@ const commands = [
       name: 'mod_channel',
       type: 7, // CHANNEL
       description: 'Channel for mod notifications'
+    }, {
+      name: 'dev_channel',
+      type: 7, // CHANNEL
+      description: 'Channel for development reports and onboarding alerts'
     }]
   },
   
@@ -501,7 +506,169 @@ client.once(Events.ClientReady, async () => {
     console.log('📊 Running hourly statistics report...');
     // Implementation for hourly reports
   });
+
+  // Schedule 12-hour onboarding reports (at 6 AM and 6 PM every day)
+  cron.schedule('0 6,18 * * *', async () => {
+    console.log('📋 Running 12-hour onboarding report...');
+    await runOnboardingReport();
+  });
 });
+
+// Function to run onboarding report
+async function runOnboardingReport() {
+  try {
+    // Get all guilds the bot is in
+    const guilds = client.guilds.cache;
+    
+    for (const [guildId, guild] of guilds) {
+      try {
+        // Get guild settings to find dev channel
+        const guildSettings = await new Promise((resolve, reject) => {
+          db.get(
+            'SELECT devChannelId FROM guild_settings WHERE guildId = ?',
+            [guildId],
+            (err, row) => {
+              if (err) reject(err);
+              else resolve(row);
+            }
+          );
+        });
+
+        // Skip if no dev channel is configured
+        if (!guildSettings || !guildSettings.devChannelId) {
+          console.log(`⚠️ No dev channel configured for guild: ${guild.name}`);
+          continue;
+        }
+
+        // Find the dev channel
+        const devChannel = guild.channels.cache.get(guildSettings.devChannelId);
+        if (!devChannel) {
+          console.log(`⚠️ Dev channel not found for guild: ${guild.name}`);
+          continue;
+        }
+
+        // Find the not-onboarded role
+        const notOnboardedRole = guild.roles.cache.find(role => role.name === 'not-onboarded');
+        if (!notOnboardedRole) {
+          console.log(`⚠️ No 'not-onboarded' role found in guild: ${guild.name}`);
+          continue;
+        }
+
+        // Get all members with the not-onboarded role
+        const notOnboardedMembers = guild.members.cache.filter(member => 
+          member.roles.cache.has(notOnboardedRole.id) && !member.user.bot
+        );
+
+        if (notOnboardedMembers.size === 0) {
+          // Send success message if everyone is onboarded
+          const successEmbed = new EmbedBuilder()
+            .setTitle('🎉 Onboarding Report - All Clear!')
+            .setDescription('Great news! All members have completed the onboarding process.')
+            .setColor('#00FF00')
+            .setTimestamp()
+            .addFields([
+              { name: '✅ Onboarded Members', value: `${guild.memberCount - 1}`, inline: true }, // -1 for bot
+              { name: '⏰ Report Time', value: `Every 12 hours (6 AM & 6 PM)`, inline: true }
+            ])
+            .setFooter({ text: `${guild.name} • Region40Bot` });
+
+          await devChannel.send({ embeds: [successEmbed] });
+          console.log(`✅ All members onboarded in guild: ${guild.name}`);
+          continue;
+        }
+
+        // Create embed with not-onboarded members
+        const embed = new EmbedBuilder()
+          .setTitle('📋 Onboarding Report - Pending Members')
+          .setDescription(`The following members still need to complete onboarding:`)
+          .setColor('#FF6B6B')
+          .setTimestamp()
+          .setFooter({ text: `${guild.name} • Region40Bot` });
+
+        // Group members by join date for better organization
+        const membersByDate = new Map();
+        
+        notOnboardedMembers.forEach(member => {
+          const joinDate = member.joinedAt.toDateString();
+          if (!membersByDate.has(joinDate)) {
+            membersByDate.set(joinDate, []);
+          }
+          membersByDate.get(joinDate).push(member);
+        });
+
+        // Sort dates (newest first)
+        const sortedDates = Array.from(membersByDate.keys()).sort((a, b) => 
+          new Date(b) - new Date(a)
+        );
+
+        let description = '';
+        let totalCount = 0;
+
+        // Add members grouped by join date
+        for (const date of sortedDates.slice(0, 10)) { // Limit to last 10 days to prevent message being too long
+          const members = membersByDate.get(date);
+          const daysSinceJoin = Math.floor((Date.now() - new Date(date)) / (1000 * 60 * 60 * 24));
+          
+          description += `\n**${date}** (${daysSinceJoin} days ago):\n`;
+          
+          for (const member of members.slice(0, 10)) { // Limit to 10 members per day
+            const timeAgo = Math.floor((Date.now() - member.joinedAt) / (1000 * 60 * 60));
+            description += `• ${member.user.username} (${member.user.tag}) - ${timeAgo}h ago\n`;
+            totalCount++;
+          }
+          
+          if (members.length > 10) {
+            description += `• ... and ${members.length - 10} more\n`;
+            totalCount += members.length - 10;
+          }
+        }
+
+        if (sortedDates.length > 10) {
+          const remainingDays = sortedDates.length - 10;
+          const remainingMembers = sortedDates.slice(10).reduce((sum, date) => 
+            sum + membersByDate.get(date).length, 0
+          );
+          description += `\n*... and ${remainingMembers} more members from ${remainingDays} earlier days*`;
+          totalCount += remainingMembers;
+        }
+
+        embed.setDescription(description);
+        embed.addFields([
+          { name: '👥 Total Pending', value: `${totalCount} members`, inline: true },
+          { name: '✅ Onboarded', value: `${guild.memberCount - totalCount - 1} members`, inline: true }, // -1 for bot
+          { name: '⏰ Next Report', value: 'In 12 hours', inline: true }
+        ]);
+
+        // Add action buttons for admins
+        const actionRow = new ActionRowBuilder()
+          .addComponents(
+            new ButtonBuilder()
+              .setCustomId('remind_onboarding')
+              .setLabel('Send Reminders')
+              .setStyle(ButtonStyle.Primary)
+              .setEmoji('📨'),
+            new ButtonBuilder()
+              .setCustomId('view_oldest')
+              .setLabel('View Oldest')
+              .setStyle(ButtonStyle.Secondary)
+              .setEmoji('⏰')
+          );
+
+        await devChannel.send({ 
+          embeds: [embed],
+          components: [actionRow]
+        });
+
+        console.log(`📋 Sent onboarding report for guild: ${guild.name} (${totalCount} pending members)`);
+
+      } catch (guildError) {
+        console.error(`Error processing onboarding report for guild ${guild.name}:`, guildError);
+      }
+    }
+  } catch (error) {
+    console.error('Error running onboarding report:', error);
+  }
+}
 
 // Member join event
 client.on('guildMemberAdd', async (member) => {
@@ -1685,11 +1852,13 @@ async function handleSetupCommand(interaction) {
     const verificationChannel = interaction.options.getChannel('verification_channel');
     const welcomeChannel = interaction.options.getChannel('welcome_channel');
     const modChannel = interaction.options.getChannel('mod_channel');
+    const devChannel = interaction.options.getChannel('dev_channel');
     
     const updateData = {};
     if (verificationChannel) updateData.verificationChannelId = verificationChannel.id;
     if (welcomeChannel) updateData.welcomeChannelId = welcomeChannel.id;
     if (modChannel) updateData.modChannelId = modChannel.id;
+    if (devChannel) updateData.devChannelId = devChannel.id;
     
     if (Object.keys(updateData).length === 0) {
       const currentSettings = await dbHelpers.getGuildSettings(interaction.guild.id);
@@ -1714,9 +1883,14 @@ async function handleSetupCommand(interaction) {
             value: currentSettings.modChannelId ? `<#${currentSettings.modChannelId}>` : 'Not set', 
             inline: true 
           },
+          { 
+            name: 'Dev Channel', 
+            value: currentSettings.devChannelId ? `<#${currentSettings.devChannelId}>` : 'Not set', 
+            inline: true 
+          },
           {
             name: 'Usage',
-            value: 'Use `/setup verification_channel:#channel` to set verification channel\nUse `/setup welcome_channel:#channel` to set welcome channel\nUse `/setup mod_channel:#channel` to set mod notifications channel'
+            value: 'Use `/setup verification_channel:#channel` to set verification channel\nUse `/setup welcome_channel:#channel` to set welcome channel\nUse `/setup mod_channel:#channel` to set mod notifications channel\nUse `/setup dev_channel:#channel` to set dev reports channel (12-hour onboarding reports)'
           }
         ]);
       
@@ -1738,6 +1912,9 @@ async function handleSetupCommand(interaction) {
     }
     if (modChannel) {
       embed.addFields({ name: 'Mod Channel', value: `<#${modChannel.id}>`, inline: true });
+    }
+    if (devChannel) {
+      embed.addFields({ name: 'Dev Channel', value: `<#${devChannel.id}>` + '\n*12-hour onboarding reports will be sent here*', inline: true });
     }
     
     await interaction.editReply({ embeds: [embed] });
@@ -2249,6 +2426,142 @@ async function handleButton(interaction) {
       .setColor(0xFFD700);
     
     await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
+  } else if (customId === 'remind_onboarding') {
+    await handleRemindOnboarding(interaction);
+  } else if (customId === 'view_oldest') {
+    await handleViewOldest(interaction);
+  }
+}
+
+// Handle onboarding reminder button
+async function handleRemindOnboarding(interaction) {
+  try {
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+    // Check if user has admin permissions
+    if (!interaction.member.permissions.has(PermissionsBitField.Flags.ManageGuild)) {
+      return await interaction.editReply({ 
+        content: '❌ You need Manage Server permissions to send onboarding reminders.' 
+      });
+    }
+
+    const guild = interaction.guild;
+    const notOnboardedRole = guild.roles.cache.find(role => role.name === 'not-onboarded');
+    
+    if (!notOnboardedRole) {
+      return await interaction.editReply({ 
+        content: '❌ No "not-onboarded" role found in this server.' 
+      });
+    }
+
+    const notOnboardedMembers = guild.members.cache.filter(member => 
+      member.roles.cache.has(notOnboardedRole.id) && !member.user.bot
+    );
+
+    if (notOnboardedMembers.size === 0) {
+      return await interaction.editReply({ 
+        content: '✅ All members have completed onboarding!' 
+      });
+    }
+
+    let sentCount = 0;
+    let failedCount = 0;
+
+    for (const [, member] of notOnboardedMembers) {
+      try {
+        const reminderEmbed = new EmbedBuilder()
+          .setTitle('📋 Onboarding Reminder')
+          .setDescription(`Hello! You haven't completed the onboarding process in **${guild.name}** yet.`)
+          .setColor('#FF6B6B')
+          .addFields([
+            { name: '🚀 Get Started', value: 'Send me a direct message with the word `verify` to begin onboarding', inline: false },
+            { name: '📝 What You\'ll Do', value: '• Complete verification\n• Set up your profile\n• Choose your alliance\n• Set language preferences', inline: false },
+            { name: '⏰ Why Complete It?', value: 'Onboarding unlocks full server access and features like translation!', inline: false }
+          ])
+          .setFooter({ text: `${guild.name} • Region40Bot`, iconURL: guild.iconURL() })
+          .setTimestamp();
+
+        await member.send({ embeds: [reminderEmbed] });
+        sentCount++;
+      } catch (error) {
+        console.log(`Failed to send reminder to ${member.user.username}: ${error.message}`);
+        failedCount++;
+      }
+    }
+
+    const responseEmbed = new EmbedBuilder()
+      .setTitle('📨 Onboarding Reminders Sent')
+      .setColor('#00FF00')
+      .addFields([
+        { name: '✅ Successfully Sent', value: `${sentCount} reminders`, inline: true },
+        { name: '❌ Failed to Send', value: `${failedCount} reminders`, inline: true },
+        { name: '📊 Total Pending', value: `${notOnboardedMembers.size} members`, inline: true }
+      ])
+      .setFooter({ text: 'Note: Some users may have DMs disabled' });
+
+    await interaction.editReply({ embeds: [responseEmbed] });
+
+  } catch (error) {
+    console.error('Error sending onboarding reminders:', error);
+    await interaction.editReply({ 
+      content: '❌ An error occurred while sending reminders. Please try again.' 
+    });
+  }
+}
+
+// Handle view oldest button
+async function handleViewOldest(interaction) {
+  try {
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+    const guild = interaction.guild;
+    const notOnboardedRole = guild.roles.cache.find(role => role.name === 'not-onboarded');
+    
+    if (!notOnboardedRole) {
+      return await interaction.editReply({ 
+        content: '❌ No "not-onboarded" role found in this server.' 
+      });
+    }
+
+    const notOnboardedMembers = guild.members.cache.filter(member => 
+      member.roles.cache.has(notOnboardedRole.id) && !member.user.bot
+    );
+
+    if (notOnboardedMembers.size === 0) {
+      return await interaction.editReply({ 
+        content: '✅ All members have completed onboarding!' 
+      });
+    }
+
+    // Sort by join date (oldest first)
+    const sortedMembers = notOnboardedMembers.sort((a, b) => a.joinedAt - b.joinedAt);
+    const oldestMembers = sortedMembers.first(10); // Show top 10 oldest
+
+    const embed = new EmbedBuilder()
+      .setTitle('⏰ Oldest Pending Onboarding Members')
+      .setDescription('Members who joined earliest but haven\'t completed onboarding:')
+      .setColor('#FFA500');
+
+    let description = '';
+    oldestMembers.forEach((member, index) => {
+      const daysSinceJoin = Math.floor((Date.now() - member.joinedAt) / (1000 * 60 * 60 * 24));
+      const joinDate = member.joinedAt.toLocaleDateString();
+      description += `**${index + 1}.** ${member.user.username} (${member.user.tag})\n`;
+      description += `   Joined: ${joinDate} (${daysSinceJoin} days ago)\n\n`;
+    });
+
+    embed.setDescription(description);
+    embed.addFields([
+      { name: '📊 Statistics', value: `Showing ${oldestMembers.length} of ${sortedMembers.size} pending members`, inline: false }
+    ]);
+
+    await interaction.editReply({ embeds: [embed] });
+
+  } catch (error) {
+    console.error('Error viewing oldest members:', error);
+    await interaction.editReply({ 
+      content: '❌ An error occurred while fetching member data. Please try again.' 
+    });
   }
 }
 

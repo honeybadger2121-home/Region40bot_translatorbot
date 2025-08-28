@@ -39,8 +39,64 @@ const client = new Client({
   partials: [Partials.Message, Partials.Channel, Partials.Reaction]
 });
 
-// Initialize database
-const db = new sqlite3.Database('./combined_bot.db');
+// Database initialization
+const db = new sqlite3.Database('combined_bot.db', (err) => {
+  if (err) {
+    console.error('Error opening database:', err.message);
+  } else {
+    console.log('Connected to the SQLite database.');
+    // Create tables if they don't exist
+    db.serialize(() => {
+        // Profiles table with language integration
+        db.run(`CREATE TABLE IF NOT EXISTS profiles (
+            userId TEXT PRIMARY KEY,
+            verified INTEGER DEFAULT 0,
+            inGameName TEXT,
+            timezone TEXT,
+            language TEXT DEFAULT 'en',
+            alliance TEXT,
+            nickname TEXT,
+            onboardingStep TEXT,
+            joinedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+            profileCompletedAt DATETIME,
+            autoTranslate INTEGER DEFAULT 0
+        )`);
+
+        // Guild settings table
+        db.run(`CREATE TABLE IF NOT EXISTS guild_settings (
+            guildId TEXT PRIMARY KEY,
+            autoTranslateEnabled INTEGER DEFAULT 0,
+            targetLanguage TEXT DEFAULT 'en',
+            onboardingEnabled INTEGER DEFAULT 1,
+            modChannelId TEXT,
+            verificationChannelId TEXT,
+            welcomeChannelId TEXT,
+            logChannelId TEXT,
+            onboardingRoleId TEXT
+        )`);
+
+        // Schema migration: Add onboardingStep if it doesn't exist
+        db.all("PRAGMA table_info(profiles)", (err, columns) => {
+            if (err) {
+                console.error("Error checking profiles table info:", err);
+                return;
+            }
+            const hasOnboardingStep = columns.some(col => col.name === 'onboardingStep');
+            if (!hasOnboardingStep) {
+                db.run("ALTER TABLE profiles ADD COLUMN onboardingStep TEXT", (alterErr) => {
+                    if (alterErr) {
+                        console.error("Error adding onboardingStep column to profiles:", alterErr);
+                    } else {
+                        console.log("✅ Successfully added 'onboardingStep' column to profiles table.");
+                    }
+                });
+            }
+        });
+
+        console.log('✅ Database initialized with combined tables');
+    });
+  }
+});
 
 // Initialize command collection
 client.commands = new Collection();
@@ -49,6 +105,7 @@ client.commands = new Collection();
 const translationCache = new Map();
 const guildSettings = new Map();
 const activeSessions = new Map();
+const recentlyJoined = new Set();
 
 // Language mapping
 const languageMap = {
@@ -79,37 +136,6 @@ const languageMap = {
   'thai': 'th',
   'vietnamese': 'vi'
 };
-
-// Create database tables
-db.serialize(() => {
-  // Profiles table with language integration
-  db.run(`CREATE TABLE IF NOT EXISTS profiles (
-    userId TEXT PRIMARY KEY,
-    verified INTEGER DEFAULT 0,
-    captchaAnswer TEXT,
-    inGameName TEXT,
-    timezone TEXT,
-    language TEXT DEFAULT 'en',
-    alliance TEXT,
-    nickname TEXT,
-    joinedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-    profileCompletedAt DATETIME,
-    autoTranslate INTEGER DEFAULT 0
-  )`);
-
-  // Guild settings table
-  db.run(`CREATE TABLE IF NOT EXISTS guild_settings (
-    guildId TEXT PRIMARY KEY,
-    autoTranslateEnabled INTEGER DEFAULT 0,
-    targetLanguage TEXT DEFAULT 'en',
-    onboardingEnabled INTEGER DEFAULT 1,
-    modChannelId TEXT,
-    verificationChannelId TEXT,
-    welcomeChannelId TEXT
-  )`);
-
-  console.log('✅ Database initialized with combined tables');
-});
 
 // Database helper functions
 const dbHelpers = {
@@ -345,11 +371,6 @@ const commands = [
       type: 5, // BOOLEAN
       description: 'Send verification DM to all reset members (default: false)',
       required: false
-    }, {
-      name: 'post_welcome',
-      type: 5, // BOOLEAN
-      description: 'Post new welcome messages for all reset members (default: false)',
-      required: false
     }]
   },
   {
@@ -375,7 +396,7 @@ const contextCommands = [
 ];
 
 // Event handlers
-client.once('clientReady', async () => {
+client.once(Events.ClientReady, async () => {
   console.log(`✅ ${client.user.tag} is online!`);
   
   // Register slash commands
@@ -405,13 +426,28 @@ client.once('clientReady', async () => {
 
 // Member join event
 client.on('guildMemberAdd', async (member) => {
+  // Strong debounce to prevent multiple triggers - check both caches
+  const memberKey = `${member.guild.id}-${member.id}`;
+  if (recentlyJoined.has(memberKey) || activeSessions.has(memberKey)) {
+    console.log(`Duplicate join event blocked for ${member.user.username}`);
+    return;
+  }
+  
+  // Add to both caches immediately to prevent any race conditions
+  recentlyJoined.add(memberKey);
+  activeSessions.set(memberKey, Date.now());
+  
+  // Clean up after 30 seconds
+  setTimeout(() => {
+    recentlyJoined.delete(memberKey);
+    activeSessions.delete(memberKey);
+  }, 30000);
+
   try {
-    const guildSettings = await dbHelpers.getGuildSettings(member.guild.id);
+    console.log(`Processing new member: ${member.user.username} in ${member.guild.name}`);
     
     // Add "not-onboarded" role to new members
     let notOnboardedRole = member.guild.roles.cache.find(role => role.name === 'not-onboarded');
-    
-    // Create the role if it doesn't exist
     if (!notOnboardedRole) {
       try {
         notOnboardedRole = await member.guild.roles.create({
@@ -426,7 +462,6 @@ client.on('guildMemberAdd', async (member) => {
       }
     }
     
-    // Assign the role to the new member
     if (notOnboardedRole) {
       try {
         await member.roles.add(notOnboardedRole, 'New member needs to complete onboarding');
@@ -436,71 +471,65 @@ client.on('guildMemberAdd', async (member) => {
       }
     }
     
-    // Always send welcome message and verification for new members
-    const welcomeChannel = guildSettings.welcomeChannelId ? 
-      member.guild.channels.cache.get(guildSettings.welcomeChannelId) : 
-      member.guild.systemChannel;
-    
-    if (welcomeChannel) {
-      // Create verification challenge for the new member
-      const captcha = Math.floor(Math.random() * 9000) + 1000;
-      const mathProblem = Math.floor(captcha / 100) + (captcha % 100);
-      
-      const welcomeEmbed = new EmbedBuilder()
+    // Send welcome DM (only one per member)
+    try {
+      const dmEmbed = new EmbedBuilder()
         .setTitle('🎉 Welcome to the server!')
-        .setDescription(`Hello ${member.user.username}! Welcome to our community. Please complete the verification below to get full access.`)
-        .setColor(0x00AE86)
-        .setThumbnail(member.user.displayAvatarURL())
+        .setDescription(`Hello ${member.user.username}! Welcome to **${member.guild.name}**!\n\nTo get started, simply reply with: **verify**`)
         .addFields([
-          { name: '� Step 1: Verification', value: `Please solve: **${Math.floor(captcha / 100)} + ${captcha % 100} = ?**\nClick the button below to enter your answer.` },
-          { name: '👤 Step 2: Profile', value: 'After verification, use `/profile` to set up your profile', inline: true },
-          { name: '🛡️ Step 3: Alliance', value: 'Choose your alliance with `/alliance`', inline: true },
-          { name: '🌐 Optional', value: 'Set up auto-translation with `/setlang`', inline: false }
-        ]);
+          { name: '🔐 Step 1', value: 'Reply with "verify" to this message' },
+          { name: '👤 Step 2', value: 'Complete your profile setup' },
+          { name: '🛡️ Step 3', value: 'Choose your alliance' },
+          { name: '🌐 Optional', value: 'Set up auto-translation' }
+        ])
+        .setColor(0x00AE86)
+        .setThumbnail(member.guild.iconURL());
       
-      const verifyButton = new ActionRowBuilder()
-        .addComponents(
-          new ButtonBuilder()
-            .setCustomId(`verify_${captcha}`)
-            .setLabel('🔐 Verify Now')
-            .setStyle(ButtonStyle.Success)
-            .setEmoji('✅')
-        );
-      
-      await welcomeChannel.send({ 
-        content: `${member.user}, welcome to the server!`,
-        embeds: [welcomeEmbed], 
-        components: [verifyButton] 
-      });
-      
-      // Also send a DM with verification instructions
-      try {
-        const dmEmbed = new EmbedBuilder()
-          .setTitle('🔐 Verification Required')
-          .setDescription(`Welcome to **${member.guild.name}**! To complete your verification, please return to the server and solve the math problem posted in the welcome channel.`)
-          .addFields([
-            { name: '📍 Next Steps', value: '1. Go back to the server\n2. Find the welcome message\n3. Click the "Verify Now" button\n4. Enter the correct answer' },
-            { name: '❓ Need Help?', value: 'Contact a server moderator if you need assistance.' }
-          ])
-          .setColor(0x00AE86)
-          .setThumbnail(member.guild.iconURL());
-          
-        await member.send({ embeds: [dmEmbed] });
-      } catch (dmError) {
-        console.log(`Could not send DM to ${member.user.username}:`, dmError.message);
-      }
+      await member.send({ embeds: [dmEmbed] });
+      console.log(`Sent welcome DM to ${member.user.username}`);
+    } catch (dmError) {
+      console.log(`Could not send DM to ${member.user.username}:`, dmError.message);
     }
   } catch (error) {
     console.error('Error in guildMemberAdd:', error);
   }
 });
 
-// Message handler for auto-translation
+// Message handler for auto-translation and DM verification
 client.on('messageCreate', async (message) => {
-  if (message.author.bot || !message.guild || !message.content.trim()) return;
+  if (message.author.bot) return;
+  
+  // Handle DM verification responses
+  if (!message.guild && message.content.trim()) {
+    try {
+      const userProfile = await dbHelpers.getUserProfile(message.author.id);
+      
+      if (userProfile && !userProfile.verified) {
+        const userMessage = message.content.trim().toLowerCase();
+        
+        if (userMessage === 'verify') {
+          await startAutomatedOnboarding(message.author);
+        } else {
+          const errorEmbed = new EmbedBuilder()
+            .setTitle('❌ Invalid Command')
+            .setDescription('Please reply with "verify" to start the verification process.')
+            .setColor(0xFF6B6B);
+          
+          await message.author.send({ embeds: [errorEmbed] });
+        }
+      } else if (userProfile && userProfile.verified && userProfile.onboardingStep && userProfile.onboardingStep !== 'complete') {
+        await handleOnboardingResponse(message.author, message.content.trim());
+      }
+    } catch (error) {
+      console.error('Error handling DM verification:', error);
+    }
+    return;
+  }
+  
+  // Existing auto-translation logic for guild messages
+  if (!message.guild || !message.content.trim()) return;
   
   try {
-    // Check for personal auto-translation (post in channel, not DM)
     const userProfile = await dbHelpers.getUserProfile(message.author.id);
     if (userProfile && userProfile.autoTranslate && userProfile.language) {
       const detectedLang = await detectLanguage(message.content);
@@ -519,11 +548,10 @@ client.on('messageCreate', async (message) => {
           .setFooter({ text: `Personal translation for ${message.author.username}` });
         
         await message.channel.send({ embeds: [translationEmbed] });
-        return; // Don't also do guild-wide translation
+        return;
       }
     }
     
-    // Check for guild-wide auto-translation (only if no personal translation was done)
     const guildSettings = await dbHelpers.getGuildSettings(message.guild.id);
     if (guildSettings.autoTranslateEnabled) {
       const detectedLang = await detectLanguage(message.content);
@@ -569,6 +597,7 @@ async function handleSlashCommand(interaction) {
   const { commandName } = interaction;
   
   try {
+    let commandHandled = true; // Assume command is handled
     switch (commandName) {
       case 'verify':
         await handleVerifyCommand(interaction);
@@ -619,12 +648,21 @@ async function handleSlashCommand(interaction) {
         await handleHelpCommand(interaction);
         break;
       default:
+        commandHandled = false; // Command not found
+    }
+
+    if (!commandHandled) {
         await interaction.reply({ content: 'Unknown command!', flags: MessageFlags.Ephemeral });
     }
   } catch (error) {
     console.error(`Error handling command ${commandName}:`, error);
     try {
-      await interaction.reply({ content: 'An error occurred while processing your command.', flags: MessageFlags.Ephemeral });
+        const replyOptions = { content: 'An error occurred while processing your command.', flags: MessageFlags.Ephemeral };
+        if (interaction.deferred || interaction.replied) {
+            await interaction.followUp(replyOptions);
+        } else {
+            await interaction.reply(replyOptions);
+        }
     } catch (replyError) {
       console.error('Error sending error reply:', replyError);
     }
@@ -633,24 +671,19 @@ async function handleSlashCommand(interaction) {
 
 // Command implementations
 async function handleVerifyCommand(interaction) {
-  const captcha = Math.floor(Math.random() * 9000) + 1000;
-  
   const embed = new EmbedBuilder()
-    .setTitle('🔐 Human Verification')
-    .setDescription('Please solve this simple math problem to verify you are human:')
-    .addFields([
-      { name: '🧮 Problem', value: `What is ${Math.floor(captcha / 100)} + ${captcha % 100}?` }
-    ])
-    .setColor(0xFFD700)
-    .setFooter({ text: 'Enter your answer using the button below' });
+    .setTitle('✅ Simple Verification')
+    .setDescription('Click the button below to complete verification and start your automated onboarding process.')
+    .setColor(0x00FF00)
+    .setFooter({ text: 'This will guide you through profile setup and alliance selection' });
   
   const button = new ActionRowBuilder()
     .addComponents(
       new ButtonBuilder()
-        .setCustomId(`verify_${captcha}`)
-        .setLabel('Enter Answer')
-        .setStyle(ButtonStyle.Primary)
-        .setEmoji('✏️')
+        .setCustomId('simple_verify')
+        .setLabel('✅ Complete Verification')
+        .setStyle(ButtonStyle.Success)
+        .setEmoji('🎉')
     );
   
   await interaction.reply({ embeds: [embed], components: [button], flags: MessageFlags.Ephemeral });
@@ -739,7 +772,6 @@ async function handleAllianceCommand(interaction) {
 async function handleSetLangCommand(interaction) {
   const langInput = interaction.options.getString('language').toLowerCase();
   
-  // Handle disable options
   if (['none', 'off', 'disable', 'stop'].includes(langInput)) {
     try {
       await dbHelpers.updateUserProfile(interaction.user.id, { 
@@ -759,11 +791,9 @@ async function handleSetLangCommand(interaction) {
     }
   }
   
-  // Map language name to code
   const lang = languageMap[langInput] || langInput;
   
   try {
-    // Get or create user profile
     let userProfile = await dbHelpers.getUserProfile(interaction.user.id);
     if (!userProfile) {
       await dbHelpers.setUserProfile(interaction.user.id, { 
@@ -913,7 +943,6 @@ async function handleStartVoiceCommand(interaction) {
     return interaction.reply({ content: '❌ You must be in a voice channel first!', flags: MessageFlags.Ephemeral });
   }
   
-  // Basic voice translation setup (would need Google Cloud Speech API for full implementation)
   const embed = new EmbedBuilder()
     .setTitle('🎤 Voice Translation')
     .setDescription('Voice translation feature is currently in development. Coming soon!')
@@ -966,22 +995,11 @@ async function handleStatsCommand(interaction) {
   }
 }
 
-// Helper function to clear alliance data and roles
 async function clearUserAlliance(interaction, member) {
-  const allianceRoleNames = [
-    'ANQA',
-    'SPBG', 
-    'MGXT',
-    '1ARK',
-    'JAXA',
-    'JAX2',
-    'ANK'
-  ];
+  const allianceRoleNames = ['ANQA', 'SPBG', 'MGXT', '1ARK', 'JAXA', 'JAX2', 'ANK'];
   
-  // Clear alliance from database
   await dbHelpers.updateUserProfile(member.user.id, { alliance: null });
   
-  // Remove any alliance roles the user might have
   const removedRoles = [];
   for (const roleName of allianceRoleNames) {
     const role = interaction.guild.roles.cache.find(r => r.name === roleName);
@@ -995,14 +1013,12 @@ async function clearUserAlliance(interaction, member) {
     }
   }
   
-  // Remove alliance tag from nickname
   try {
-    const currentNickname = member.nickname || member.user.displayName;
-    // Remove alliance tag (anything in parentheses at the start)
-    const cleanNickname = currentNickname.replace(/^\([A-Z0-9]{3,4}\)\s*/, '');
-    if (cleanNickname !== currentNickname) {
+    const userProfile = await dbHelpers.getUserProfile(member.user.id);
+    const baseNickname = userProfile?.inGameName || member.displayName;
+    const cleanNickname = baseNickname.replace(/^\([A-Z0-9]{3,4}\)\s*/, '');
+    if (cleanNickname !== baseNickname) {
       await member.setNickname(cleanNickname, 'Alliance tag removed during verification reset');
-      // Update database with clean nickname
       await dbHelpers.updateUserProfile(member.user.id, { nickname: cleanNickname });
     }
   } catch (nicknameError) {
@@ -1012,9 +1028,270 @@ async function clearUserAlliance(interaction, member) {
   return removedRoles;
 }
 
+// Helper function to get base nickname for a member
+function getBaseNickname(member, userProfile) {
+  if (userProfile && userProfile.inGameName) {
+    return userProfile.inGameName;
+  }
+  return member.displayName;
+}
+
+// Helper function to set nickname with alliance tag
+async function setNicknameWithAlliance(member, allianceTag, userProfile) {
+  try {
+    // Check if bot has permission to manage nicknames
+    const botMember = member.guild.members.cache.get(member.client.user.id);
+    if (!botMember.permissions.has(PermissionsBitField.Flags.ManageNicknames)) {
+      console.log(`Missing "Manage Nicknames" permission in ${member.guild.name}, skipping nickname update`);
+      return null; // Return null to indicate nickname wasn't set
+    }
+    
+    // Check if bot's role is high enough to change this member's nickname
+    if (member.roles.highest.position >= botMember.roles.highest.position && member.id !== member.guild.ownerId) {
+      console.log(`Cannot change nickname for ${member.user.username} - role hierarchy issue`);
+      return null;
+    }
+    
+    const baseNickname = getBaseNickname(member, userProfile);
+    const cleanNickname = baseNickname.replace(/^\([A-Z0-9]{3,4}\)\s*/, '');
+    const newNickname = `(${allianceTag}) ${cleanNickname}`;
+    
+    await member.setNickname(newNickname, `Alliance tag added: ${allianceTag}`);
+    await dbHelpers.updateUserProfile(member.user.id, { nickname: newNickname });
+    
+    console.log(`Successfully set nickname for ${member.user.username}: ${newNickname}`);
+    return newNickname;
+  } catch (error) {
+    if (error.code === 50013) {
+      console.log(`Missing permissions to set nickname for ${member.user.username}, continuing without nickname change`);
+      return null;
+    } else {
+      console.error('Error setting nickname with alliance:', error);
+      return null; // Don't throw, just continue without nickname
+    }
+  }
+}
+
+async function startAutomatedOnboarding(user) {
+  try {
+    // Check if already in onboarding process
+    const userProfile = await dbHelpers.getUserProfile(user.id);
+    if (userProfile && userProfile.verified && userProfile.onboardingStep) {
+      console.log(`User ${user.username} already in onboarding process, skipping duplicate`);
+      return;
+    }
+    
+    await dbHelpers.updateUserProfile(user.id, { 
+      verified: 1,
+      onboardingStep: 'profile'
+    });
+    
+    // Remove not-onboarded role from all guilds
+    for (const guild of client.guilds.cache.values()) {
+      try {
+        const member = await guild.members.fetch(user.id).catch(() => null);
+        if (member) {
+          const notOnboardedRole = guild.roles.cache.find(role => role.name === 'not-onboarded');
+          if (notOnboardedRole && member.roles.cache.has(notOnboardedRole.id)) {
+            await member.roles.remove(notOnboardedRole, 'Completed automated verification');
+          }
+        }
+      } catch (error) {
+        console.error(`Error removing role in guild ${guild.name}:`, error);
+      }
+    }
+    
+    // Send profile setup message
+    const profileEmbed = new EmbedBuilder()
+      .setTitle('✅ Verification Complete!')
+      .setDescription('Great! Now let\'s set up your profile. Please provide the following information:')
+      .addFields([
+        { name: '🎮 In-Game Name', value: 'What is your in-game name?' },
+        { name: '🌍 Timezone/Country', value: 'What timezone/country are you in? (e.g., EST, PST, UK, Germany)' },
+        { name: '🌐 Language', value: 'What is your preferred language? (e.g., English, Spanish, French)' }
+      ])
+      .setColor(0x00FF00)
+      .setFooter({ text: 'Please reply with: IGN | Timezone | Language (separated by | symbol)' });
+    
+    await user.send({ embeds: [profileEmbed] });
+    console.log(`Sent profile setup message to ${user.username}`);
+    
+  } catch (error) {
+    console.error('Error in automated onboarding:', error);
+    
+    const errorEmbed = new EmbedBuilder()
+      .setTitle('⚠️ Onboarding Error')
+      .setDescription('There was an error starting your onboarding process. Please contact a server administrator.')
+      .setColor(0xFF6B6B);
+    
+    await user.send({ embeds: [errorEmbed] }).catch(() => {});
+  }
+}
+
+async function handleOnboardingResponse(user, message) {
+  try {
+    const userProfile = await dbHelpers.getUserProfile(user.id);
+    
+    if (userProfile.onboardingStep === 'profile') {
+      const parts = message.split('|').map(part => part.trim());
+      
+      if (parts.length !== 3) {
+        const errorEmbed = new EmbedBuilder()
+          .setTitle('❌ Invalid Format')
+          .setDescription('Please use the format: **IGN | Timezone | Language**\n\nExample: `JohnDoe | EST | English`')
+          .setColor(0xFF6B6B);
+        
+        await user.send({ embeds: [errorEmbed] });
+        return;
+      }
+      
+      const [inGameName, timezone, languageInput] = parts;
+      const language = languageMap[languageInput.toLowerCase()] || languageInput.toLowerCase();
+      
+      await dbHelpers.updateUserProfile(user.id, {
+        inGameName,
+        timezone,
+        language,
+        autoTranslate: 1,
+        profileCompletedAt: new Date().toISOString(),
+        onboardingStep: 'alliance'
+      });
+      
+      const allianceEmbed = new EmbedBuilder()
+        .setTitle('📋 Profile Updated!')
+        .setDescription('Perfect! Your profile has been set up successfully.')
+        .addFields([
+          { name: '🎮 In-Game Name', value: inGameName },
+          { name: '🌍 Timezone', value: timezone },
+          { name: '🌐 Language', value: `${languageInput} (Auto-translation enabled)` },
+          { name: '🛡️ Next Step', value: 'Please choose your alliance from the list below:' }
+        ])
+        .setColor(0x00AE86);
+      
+      const allianceOptions = new EmbedBuilder()
+        .setTitle('🛡️ Available Alliances')
+        .setDescription('Reply with the **number** of your chosen alliance:')
+        .addFields([
+          { name: '1️⃣ ANQA', value: 'ANQA Alliance', inline: true },
+          { name: '2️⃣ SPBG', value: 'SPBG Alliance', inline: true },
+          { name: '3️⃣ MGXT', value: 'MGXT Alliance', inline: true },
+          { name: '4️⃣ 1ARK', value: '1ARK Alliance', inline: true },
+          { name: '5️⃣ JAXA', value: 'JAXA Alliance', inline: true },
+          { name: '6️⃣ JAX2', value: 'JAX2 Alliance', inline: true },
+          { name: '7️⃣ ANK', value: 'ANK Alliance', inline: true }
+        ])
+        .setColor(0x9932CC)
+        .setFooter({ text: 'Reply with just the number (1-7)' });
+      
+      await user.send({ embeds: [allianceEmbed, allianceOptions] });
+      
+    } else if (userProfile.onboardingStep === 'alliance') {
+      const allianceNum = parseInt(message.trim());
+      const allianceMap = {
+        1: { key: 'anqa', name: 'ANQA', tag: 'ANQA' },
+        2: { key: 'spbg', name: 'SPBG', tag: 'SPBG' },
+        3: { key: 'mgxt', name: 'MGXT', tag: 'MGXT' },
+        4: { key: '1ark', name: '1ARK', tag: '1ARK' },
+        5: { key: 'jaxa', name: 'JAXA', tag: 'JAXA' },
+        6: { key: 'jax2', name: 'JAX2', tag: 'JAX2' },
+        7: { key: 'ank', name: 'ANK', tag: 'ANK' }
+      };
+      
+      if (!allianceMap[allianceNum]) {
+        const errorEmbed = new EmbedBuilder()
+          .setTitle('❌ Invalid Selection')
+          .setDescription('Please reply with a number from 1-7 to select your alliance.')
+          .setColor(0xFF6B6B);
+        
+        await user.send({ embeds: [errorEmbed] });
+        return;
+      }
+      
+      const selectedAlliance = allianceMap[allianceNum];
+      
+      await dbHelpers.updateUserProfile(user.id, {
+        alliance: selectedAlliance.key,
+        onboardingStep: 'complete'
+      });
+      
+          for (const guild of client.guilds.cache.values()) {
+            try {
+              const member = await guild.members.fetch(user.id).catch(() => null);
+              if (member) {
+                const allianceRole = guild.roles.cache.find(role => role.name === selectedAlliance.name);
+                if (allianceRole) {
+                  await member.roles.add(allianceRole, `Joined ${selectedAlliance.name} via automated onboarding`);
+                }
+                
+                try {
+                  const userProfile = await dbHelpers.getUserProfile(user.id);
+                  const newNickname = await setNicknameWithAlliance(member, selectedAlliance.tag, userProfile);
+                  
+                  if (!newNickname) {
+                    console.log(`Could not set nickname for ${member.user.username}, but continuing onboarding`);
+                  }
+                } catch (nicknameError) {
+                  console.error('Error setting nickname in automated onboarding:', nicknameError);
+                }
+              }
+            } catch (error) {
+              console.error(`Error applying alliance in guild ${guild.name}:`, error);
+            }
+          }
+          
+          const completionEmbed = new EmbedBuilder()
+            .setTitle('🎉 Onboarding Complete!')
+            .setDescription('Congratulations! Your onboarding is now complete.')
+            .addFields([
+              { name: '🛡️ Alliance', value: `${selectedAlliance.name} (${selectedAlliance.tag})` },
+              { name: '🎭 Role Applied', value: 'Alliance role has been assigned' },
+              { name: '🏷️ Nickname', value: `Alliance tag setup attempted` },
+              { name: '🌐 Auto-Translation', value: `Enabled for ${userProfile.language}` },
+              { name: '✨ What\'s Next?', value: 'You now have full access to all server features! Welcome to the community!' }
+            ])
+            .setColor(0x00FF00);
+      
+      await user.send({ embeds: [completionEmbed] });
+      
+      for (const guild of client.guilds.cache.values()) {
+        try {
+          const member = await guild.members.fetch(user.id).catch(() => null);
+          if (member) {
+            const guildSettings = await dbHelpers.getGuildSettings(guild.id);
+            const welcomeChannel = guildSettings.welcomeChannelId ? 
+              guild.channels.cache.get(guildSettings.welcomeChannelId) : 
+              guild.systemChannel;
+            
+            if (welcomeChannel) {
+              const welcomeEmbed = new EmbedBuilder()
+                .setTitle('🌟 Welcome to the Community!')
+                .setDescription(`Please welcome ${member} who has completed their onboarding!`)
+                .addFields([
+                  { name: '🎮 In-Game Name', value: userProfile.inGameName, inline: true },
+                  { name: '🌍 Timezone/Country', value: userProfile.timezone, inline: true },
+                  { name: '🌐 Language', value: userProfile.language, inline: true },
+                  { name: '🛡️ Alliance', value: `${selectedAlliance.name} (${selectedAlliance.tag})`, inline: false }
+                ])
+                .setColor(0x00FF00)
+                .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
+                .setTimestamp();
+              
+              await welcomeChannel.send({ embeds: [welcomeEmbed] });
+            }
+          }
+        } catch (error) {
+          console.error(`Error sending welcome message in guild ${guild.name}:`, error);
+        }
+      }
+    }
+    
+  } catch (error) {
+    console.error('Error handling onboarding response:', error);
+  }
+}
+
 async function handleManageCommand(interaction) {
   try {
-    // Check bot permissions first
     const botMember = interaction.guild.members.cache.get(interaction.client.user.id);
     if (!botMember.permissions.has(PermissionsBitField.Flags.ManageRoles)) {
       return interaction.reply({ 
@@ -1033,7 +1310,6 @@ async function handleManageCommand(interaction) {
     
     const notOnboardedRole = interaction.guild.roles.cache.find(role => role.name === 'not-onboarded');
     
-    // Check if the bot's role is higher than the target role
     if (notOnboardedRole && botMember.roles.highest.position <= notOnboardedRole.position) {
       return interaction.reply({ 
         content: '❌ My role is not high enough to manage the "not-onboarded" role. Please move my role above it in the server settings.', 
@@ -1053,12 +1329,11 @@ async function handleManageCommand(interaction) {
         
         try {
           await member.roles.add(notOnboardedRole, `Added by ${interaction.user.username}`);
-          await interaction.reply({ content: `✅ Added "not-onboarded" role to ${targetUser.username}.`, flags: MessageFlags.Ephemeral });
+          return interaction.reply({ content: `✅ Added "not-onboarded" role to ${targetUser.username}.`, flags: MessageFlags.Ephemeral });
         } catch (roleError) {
           console.error('Error adding role:', roleError);
-          await interaction.reply({ content: '❌ Failed to add role. Please check my permissions and role hierarchy.', flags: MessageFlags.Ephemeral });
+          return interaction.reply({ content: '❌ Failed to add role. Please check my permissions and role hierarchy.', flags: MessageFlags.Ephemeral });
         }
-        break;
         
       case 'remove_role':
         if (!notOnboardedRole || !member.roles.cache.has(notOnboardedRole.id)) {
@@ -1072,11 +1347,11 @@ async function handleManageCommand(interaction) {
           console.error('Error removing role:', roleError);
           return interaction.reply({ content: '❌ Failed to remove role. Please check my permissions and role hierarchy.', flags: MessageFlags.Ephemeral });
         }
+        break;
         
       case 'reset_verification':
         await dbHelpers.setUserProfile(targetUser.id, { verified: 0 });
         
-        // Clear alliance data and roles
         const removedRoles = await clearUserAlliance(interaction, member);
         
         if (notOnboardedRole && !member.roles.cache.has(notOnboardedRole.id)) {
@@ -1088,10 +1363,30 @@ async function handleManageCommand(interaction) {
           }
         }
         
-        let responseMessage = `✅ Reset verification for ${targetUser.username}. They will need to verify again.`;
+        try {
+          const dmEmbed = new EmbedBuilder()
+            .setTitle('🔄 Verification Reset')
+            .setDescription(`Your verification has been reset in **${interaction.guild.name}** by an administrator.`)
+            .addFields([
+              { name: '✅ How to verify:', value: 'Reply to this DM with the word "verify"' },
+              { name: '✨ After verification:', value: 'You\'ll be guided through profile setup, alliance selection, and language preferences' },
+              { name: '❓ Need Help?', value: 'Contact a server moderator if you need assistance.' }
+            ])
+            .setColor(0xFFD700)
+            .setThumbnail(interaction.guild.iconURL());
+            
+          await targetUser.send({ embeds: [dmEmbed] });
+          
+        } catch (dmError) {
+          console.log(`Could not send verification DM to ${targetUser.username}:`, dmError.message);
+          return interaction.reply({ content: `⚠️ Reset verification but could not send DM to ${targetUser.username}. They may have DMs disabled.`, flags: MessageFlags.Ephemeral });
+        }
+        
+        let responseMessage = `✅ Reset verification for ${targetUser.username}.`;
         if (removedRoles.length > 0) {
           responseMessage += `\n🔄 Removed alliance roles: ${removedRoles.join(', ')}`;
         }
+        responseMessage += `\n📧 Verification DM sent successfully.`;
         
         return interaction.reply({ content: responseMessage, flags: MessageFlags.Ephemeral });
         
@@ -1122,7 +1417,6 @@ async function handleManageCommand(interaction) {
 
 async function handleSetupCommand(interaction) {
   try {
-    // Defer the reply to prevent timeout issues
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     
     const verificationChannel = interaction.options.getChannel('verification_channel');
@@ -1134,9 +1428,7 @@ async function handleSetupCommand(interaction) {
     if (welcomeChannel) updateData.welcomeChannelId = welcomeChannel.id;
     if (modChannel) updateData.modChannelId = modChannel.id;
     
-    // Check if any options were provided
     if (Object.keys(updateData).length === 0) {
-      // No options provided, show current settings
       const currentSettings = await dbHelpers.getGuildSettings(interaction.guild.id);
       
       const embed = new EmbedBuilder()
@@ -1168,7 +1460,6 @@ async function handleSetupCommand(interaction) {
       return await interaction.editReply({ embeds: [embed] });
     }
     
-    // Update settings with provided options
     await dbHelpers.setGuildSettings(interaction.guild.id, updateData);
     
     const embed = new EmbedBuilder()
@@ -1190,7 +1481,6 @@ async function handleSetupCommand(interaction) {
   } catch (error) {
     console.error('Error in setup command:', error);
     
-    // Try to respond appropriately based on whether we deferred or not
     if (interaction.deferred) {
       await interaction.editReply({ content: 'Error updating server settings. Please try again.' });
     } else {
@@ -1309,7 +1599,6 @@ async function handleCheckPermsCommand(interaction) {
       });
     }
     
-    // Add troubleshooting section
     const issues = [];
     if (!permissions.manageRoles) {
       issues.push('• Enable "Manage Roles" permission');
@@ -1348,9 +1637,8 @@ async function handleCheckPermsCommand(interaction) {
 async function handleResetAllCommand(interaction) {
   try {
     const confirm = interaction.options.getBoolean('confirm');
-    const addRole = interaction.options.getBoolean('add_role') !== false; // Default true
-    const sendDM = interaction.options.getBoolean('send_dm') || false; // Default false
-    const postWelcome = interaction.options.getBoolean('post_welcome') || false; // Default false
+    const addRole = interaction.options.getBoolean('add_role') !== false;
+    const sendDM = interaction.options.getBoolean('send_dm') || false;
     
     if (!confirm) {
       return interaction.reply({ 
@@ -1359,10 +1647,8 @@ async function handleResetAllCommand(interaction) {
       });
     }
     
-    // Defer reply as this operation can take a while
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     
-    // Check bot permissions
     const botMember = interaction.guild.members.cache.get(interaction.client.user.id);
     if (!botMember.permissions.has(PermissionsBitField.Flags.ManageRoles) && addRole) {
       return interaction.editReply({ 
@@ -1370,19 +1656,11 @@ async function handleResetAllCommand(interaction) {
       });
     }
     
-    // Get guild settings for welcome channel
-    const guildSettings = await dbHelpers.getGuildSettings(interaction.guild.id);
-    const welcomeChannelId = guildSettings.welcomeChannelId;
-    const welcomeChannel = welcomeChannelId ? 
-      interaction.guild.channels.cache.get(welcomeChannelId) : 
-      interaction.guild.systemChannel;
+    let notOnboardedRole = interaction.guild.roles.cache.find(role => role.name === 'not-onboarded');
     
-    const notOnboardedRole = interaction.guild.roles.cache.find(role => role.name === 'not-onboarded');
-    
-    // Create role if it doesn't exist and we need to add it
     if (!notOnboardedRole && addRole) {
       try {
-        const newRole = await interaction.guild.roles.create({
+        notOnboardedRole = await interaction.guild.roles.create({
           name: 'not-onboarded',
           color: '#FF6B6B',
           reason: 'Auto-created for mass verification reset',
@@ -1397,17 +1675,14 @@ async function handleResetAllCommand(interaction) {
       }
     }
     
-    // Fetch all members to ensure we have the complete list
     const allMembers = await interaction.guild.members.fetch();
     const memberCount = allMembers.size;
     let processedCount = 0;
     let successCount = 0;
     let roleSuccessCount = 0;
     let dmSuccessCount = 0;
-    let welcomeSuccessCount = 0;
     let errors = [];
     
-    // Update progress embed
     const progressEmbed = new EmbedBuilder()
       .setTitle('🔄 Resetting All Member Verification...')
       .setDescription('Processing all server members. This may take a few minutes.')
@@ -1420,7 +1695,6 @@ async function handleResetAllCommand(interaction) {
     
     await interaction.editReply({ embeds: [progressEmbed] });
     
-    // Process members in batches to avoid rate limits
     const memberArray = Array.from(allMembers.values());
     const batchSize = 10;
     
@@ -1429,16 +1703,13 @@ async function handleResetAllCommand(interaction) {
       
       await Promise.all(batch.map(async (member) => {
         try {
-          // Skip bots
           if (member.user.bot) {
             processedCount++;
             return;
           }
           
-          // Reset verification in database
           await dbHelpers.setUserProfile(member.user.id, { verified: 0 });
           
-          // Clear alliance data and roles
           try {
             await clearUserAlliance(interaction, member);
           } catch (allianceError) {
@@ -1447,7 +1718,6 @@ async function handleResetAllCommand(interaction) {
           
           successCount++;
           
-          // Add role if requested and role exists
           if (addRole && notOnboardedRole && !member.roles.cache.has(notOnboardedRole.id)) {
             try {
               await member.roles.add(notOnboardedRole, `Mass verification reset by ${interaction.user.username}`);
@@ -1457,13 +1727,10 @@ async function handleResetAllCommand(interaction) {
             }
           }
           
-          // Send DM if requested
           if (sendDM) {
             try {
               const welcomeMessage = `🌟 Welcome to **${interaction.guild.name}**! 🌟\n\n` +
-                `Hey there, ${member.user.username}! Your verification has been reset and we're excited to have you here!\n\n` +
-                `🔗 **Please click this link to verify your account:**\n` +
-                `https://discord.com/oauth2/authorize?client_id=${process.env.CLIENT_ID}&redirect_uri=${encodeURIComponent(process.env.REDIRECT_URI)}&response_type=code&scope=identify%20guilds.join&state=${encodeURIComponent(interaction.guild.id)}\n\n` +
+                `Hey there, ${member.user.username}! Your verification has been reset. Please reply with "verify" to begin.\n\n` +
                 `✨ Once verified, you'll have full access to all our channels and features!\n\n` +
                 `If you have any questions, feel free to ask our friendly community. We're here to help! 💙`;
 
@@ -1474,26 +1741,6 @@ async function handleResetAllCommand(interaction) {
             }
           }
           
-          // Post welcome message if requested
-          if (postWelcome && welcomeChannelId) {
-            try {
-              const welcomeChannel = interaction.guild.channels.cache.get(welcomeChannelId);
-              if (welcomeChannel) {
-                const welcomeEmbed = new EmbedBuilder()
-                  .setTitle('🌟 Welcome Back!')
-                  .setDescription(`Hey ${member}! Your verification has been reset. Please check your DMs for the verification link!`)
-                  .setColor(0x00FF00)
-                  .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
-                  .setTimestamp();
-
-                await welcomeChannel.send({ embeds: [welcomeEmbed] });
-                welcomeSuccessCount++;
-              }
-            } catch (welcomeError) {
-              errors.push(`Welcome message failed for ${member.user.username}: ${welcomeError.message}`);
-            }
-          }
-          
         } catch (error) {
           errors.push(`Database reset failed for ${member.user.username}: ${error.message}`);
         } finally {
@@ -1501,7 +1748,6 @@ async function handleResetAllCommand(interaction) {
         }
       }));
       
-      // Update progress every batch
       const progress = Math.round((processedCount / memberCount) * 100);
       const updatedEmbed = new EmbedBuilder()
         .setTitle('🔄 Resetting All Member Verification...')
@@ -1515,11 +1761,9 @@ async function handleResetAllCommand(interaction) {
       
       await interaction.editReply({ embeds: [updatedEmbed] });
       
-      // Small delay to avoid rate limits
       await new Promise(resolve => setTimeout(resolve, 1000));
     }
     
-    // Final results
     const resultEmbed = new EmbedBuilder()
       .setTitle('✅ Mass Verification Reset Complete!')
       .setDescription('All server members have been processed.')
@@ -1528,10 +1772,8 @@ async function handleResetAllCommand(interaction) {
         { name: '✅ Database Resets', value: successCount.toString(), inline: true },
         { name: '🎭 Role Assignments', value: addRole ? roleSuccessCount.toString() : 'Skipped', inline: true },
         { name: '📨 DMs Sent', value: sendDM ? dmSuccessCount.toString() : 'Skipped', inline: true },
-        { name: '🎉 Welcome Messages', value: postWelcome ? welcomeSuccessCount.toString() : 'Skipped', inline: true },
         { name: '⚠️ Errors', value: errors.length.toString(), inline: true },
-        { name: '📊 Success Rate', value: `${Math.round((successCount / (memberCount - allMembers.filter(m => m.user.bot).size)) * 100)}%`, inline: true },
-        { name: '⏱️ Processing Time', value: 'Complete', inline: true }
+        { name: '📊 Success Rate', value: `${Math.round((successCount / (memberCount - allMembers.filter(m => m.user.bot).size)) * 100)}%`, inline: true }
       ])
       .setColor(errors.length > 0 ? 0xFF6B6B : 0x00FF00)
       .setTimestamp();
@@ -1552,7 +1794,6 @@ async function handleResetAllCommand(interaction) {
     
     await interaction.editReply({ embeds: [resultEmbed] });
     
-    // Log summary
     console.log(`Mass verification reset completed by ${interaction.user.username} in ${interaction.guild.name}:`);
     console.log(`- Total members: ${memberCount}`);
     console.log(`- Database resets: ${successCount}`);
@@ -1607,7 +1848,7 @@ async function handleHelpCommand(interaction) {
       },
       { 
         name: '🔗 Useful Links', 
-        value: '[Add Bot to Server](https://discord.com/oauth2/authorize?client_id=1410037675368648704&permissions=8992588800&scope=bot%20applications.commands)\n[GitHub Repository](https://github.com/honeybadger2121-home/Region40bot_translatorbot)\n[Setup Guide](https://github.com/honeybadger2121-home/Region40bot_translatorbot/blob/main/SETUP.md)\n[Full Documentation](https://github.com/honeybadger2121-home/Region40bot_translatorbot/blob/main/README.md)' 
+        value: '[Add Bot to Your Server](https://discord.com/oauth2/authorize?client_id=1410037675368648704&permissions=8992588800&scope=bot%20applications.commands)\n[GitHub Repository](https://github.com/honeybadger2121-home/Region40bot_translatorbot)\n[Setup Guide](https://github.com/honeybadger2121-home/Region40bot_translatorbot/blob/main/SETUP.md)\n[Full Documentation](https://github.com/honeybadger2121-home/Region40bot_translatorbot/blob/main/README.md)' 
       }
     ])
     .setColor(0x9932CC)
@@ -1620,23 +1861,44 @@ async function handleHelpCommand(interaction) {
 async function handleButton(interaction) {
   const customId = interaction.customId;
   
-  if (customId.startsWith('verify_')) {
-    const captcha = parseInt(customId.split('_')[1]);
-    const answer = Math.floor(captcha / 100) + (captcha % 100);
+  if (customId === 'simple_verify') {
+    try {
+      await dbHelpers.setUserProfile(interaction.user.id, { 
+        verified: 1
+      });
+      
+      const member = interaction.guild.members.cache.get(interaction.user.id);
+      if (member) {
+        const notOnboardedRole = interaction.guild.roles.cache.find(role => role.name === 'not-onboarded');
+        if (notOnboardedRole && member.roles.cache.has(notOnboardedRole.id)) {
+          try {
+            await member.roles.remove(notOnboardedRole, 'Completed verification process');
+            console.log(`Removed "not-onboarded" role from ${member.user.username}`);
+          } catch (roleRemoveError) {
+            console.error('Error removing not-onboarded role:', roleRemoveError);
+          }
+        }
+      }
+      
+      await startAutomatedOnboarding(interaction.user);
+      
+      const embed = new EmbedBuilder()
+        .setTitle('✅ Verification Successful!')
+        .setDescription('You have been verified! Check your DMs for the automated onboarding process.')
+        .setColor(0x00FF00);
+      
+      await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
+    } catch (error) {
+      console.error('Error verifying user:', error);
+      await interaction.reply({ content: 'Error completing verification.', flags: MessageFlags.Ephemeral });
+    }
+  } else if (customId.startsWith('verify_')) {
+    const embed = new EmbedBuilder()
+      .setTitle('⚠️ Verification Method Updated')
+      .setDescription('This verification method is no longer used. Please use the `/verify` command to start the new process.')
+      .setColor(0xFFD700);
     
-    const modal = new ModalBuilder()
-      .setCustomId(`captcha_${answer}`)
-      .setTitle('🔐 CAPTCHA Verification');
-    
-    const answerInput = new TextInputBuilder()
-      .setCustomId('captcha_answer')
-      .setLabel('Enter your answer:')
-      .setStyle(TextInputStyle.Short)
-      .setPlaceholder('Enter the sum...')
-      .setRequired(true);
-    
-    modal.addComponents(new ActionRowBuilder().addComponents(answerInput));
-    await interaction.showModal(modal);
+    await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
   }
 }
 
@@ -1645,23 +1907,12 @@ async function handleSelectMenu(interaction) {
   if (interaction.customId === 'alliance_select') {
     const alliance = interaction.values[0];
     const allianceNames = {
-      'anqa': 'ANQA',
-      'spbg': 'SPBG',
-      'mgxt': 'MGXT',
-      '1ark': '1ARK',
-      'jaxa': 'JAXA',
-      'jax2': 'JAX2',
-      'ank': 'ANK'
+      'anqa': 'ANQA', 'spbg': 'SPBG', 'mgxt': 'MGXT', '1ark': '1ARK',
+      'jaxa': 'JAXA', 'jax2': 'JAX2', 'ank': 'ANK'
     };
-    
     const allianceTags = {
-      'anqa': 'ANQA',
-      'spbg': 'SPBG',
-      'mgxt': 'MGXT',
-      '1ark': '1ARK',
-      'jaxa': 'JAXA',
-      'jax2': 'JAX2',
-      'ank': 'ANK'
+      'anqa': 'ANQA', 'spbg': 'SPBG', 'mgxt': 'MGXT', '1ark': '1ARK',
+      'jaxa': 'JAXA', 'jax2': 'JAX2', 'ank': 'ANK'
     };
     
     try {
@@ -1669,7 +1920,6 @@ async function handleSelectMenu(interaction) {
       const selectedAllianceName = allianceNames[alliance];
       const selectedAllianceTag = allianceTags[alliance];
       
-      // Remove any existing alliance roles first
       const allAllianceRoleNames = Object.values(allianceNames);
       for (const roleName of allAllianceRoleNames) {
         const existingRole = interaction.guild.roles.cache.find(r => r.name === roleName);
@@ -1678,138 +1928,85 @@ async function handleSelectMenu(interaction) {
         }
       }
       
-      // Find the alliance role (don't create if it doesn't exist)
       let allianceRole = interaction.guild.roles.cache.find(role => role.name === selectedAllianceName);
       if (!allianceRole) {
         return interaction.reply({ 
-          content: `❌ Alliance role "${selectedAllianceName}" not found. Please contact an administrator to ensure all alliance roles are properly set up.`, 
+          content: `❌ Alliance role "${selectedAllianceName}" not found. Please contact an administrator.`, 
           flags: MessageFlags.Ephemeral 
         });
       }
       
-      // Assign the alliance role
       await member.roles.add(allianceRole, `Joined ${selectedAllianceName}`);
       
-      // Update nickname with alliance tag
-      const currentNickname = member.nickname || member.user.displayName;
-      // Remove any existing alliance tags first (anything in parentheses at the start)
-      const cleanNickname = currentNickname.replace(/^\([A-Z0-9]{3,4}\)\s*/, '');
-      const newNickname = `(${selectedAllianceTag}) ${cleanNickname}`;
+      const userProfile = await dbHelpers.getUserProfile(interaction.user.id);
+      const newNickname = await setNicknameWithAlliance(member, selectedAllianceTag, userProfile);
       
-      try {
-        await member.setNickname(newNickname, `Alliance tag added: ${selectedAllianceTag}`);
-      } catch (nicknameError) {
-        console.error('Error setting nickname:', nicknameError);
-        // Continue even if nickname fails (might be due to hierarchy)
-      }
-      
-      // Update database
       await dbHelpers.updateUserProfile(interaction.user.id, { 
-        alliance,
-        nickname: newNickname 
+        alliance: alliance
       });
       
       const embed = new EmbedBuilder()
-        .setTitle('🎉 Alliance Selected!')
-        .setDescription(`You have successfully joined the **${selectedAllianceName}**!`)
-        .setColor(parseInt(allianceRole.color.toString(16), 16) || 0x00FF00)
+        .setTitle('🛡️ Alliance Joined!')
+        .setDescription(`You have successfully joined the **${selectedAllianceName}** alliance!`)
         .addFields([
-          { name: '🎭 Role Assigned', value: selectedAllianceName, inline: true },
-          { name: '🏷️ Tag Added', value: `(${selectedAllianceTag})`, inline: true },
-          { name: 'Next Steps:', value: 'Your onboarding is now complete! Explore the server and meet your alliance members.' }
-        ]);
+          { name: 'Role Assigned', value: selectedAllianceName, inline: true }
+        ])
+        .setColor(0x00AE86);
+      
+      // Only add nickname field if it was successfully set
+      if (newNickname) {
+        embed.addFields({ name: 'Nickname Updated', value: newNickname, inline: true });
+      } else {
+        embed.addFields({ name: 'Nickname', value: '⚠️ Could not update (missing permissions)', inline: true });
+      }
       
       await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
     } catch (error) {
-      console.error('Error setting alliance:', error);
-      await interaction.reply({ content: 'Error setting your alliance. Please check that the alliance role exists and that I have permissions to manage roles and nicknames.', flags: MessageFlags.Ephemeral });
+      console.error('Error handling alliance selection:', error);
+      await interaction.reply({ content: 'Error setting your alliance. Please check my permissions.', flags: MessageFlags.Ephemeral });
     }
   }
 }
 
 // Modal handler
 async function handleModal(interaction) {
-  if (interaction.customId.startsWith('captcha_')) {
-    const correctAnswer = parseInt(interaction.customId.split('_')[1]);
-    const userAnswer = parseInt(interaction.fields.getTextInputValue('captcha_answer'));
-    
-    if (userAnswer === correctAnswer) {
-      try {
-        await dbHelpers.setUserProfile(interaction.user.id, { 
-          verified: 1,
-          captchaAnswer: userAnswer.toString()
-        });
-        
-        // Remove "not-onboarded" role upon successful verification
-        const member = interaction.guild.members.cache.get(interaction.user.id);
-        if (member) {
-          const notOnboardedRole = interaction.guild.roles.cache.find(role => role.name === 'not-onboarded');
-          if (notOnboardedRole && member.roles.cache.has(notOnboardedRole.id)) {
-            try {
-              await member.roles.remove(notOnboardedRole, 'Completed verification process');
-              console.log(`Removed "not-onboarded" role from ${member.user.username}`);
-            } catch (roleRemoveError) {
-              console.error('Error removing not-onboarded role:', roleRemoveError);
-            }
-          }
-        }
-        
-        const embed = new EmbedBuilder()
-          .setTitle('✅ Verification Successful!')
-          .setDescription('You have been verified and given full access to the server! You can now:')
-          .addFields([
-            { name: '📋 Complete Profile', value: 'Use `/profile` to fill out your information' },
-            { name: '🛡️ Choose Alliance', value: 'Use `/alliance` to select your alliance' },
-            { name: '🌐 Set Language', value: 'Use `/setlang` to enable auto-translation' }
-          ])
-          .setColor(0x00FF00);
-        
-        await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
-      } catch (error) {
-        console.error('Error verifying user:', error);
-        await interaction.reply({ content: 'Error completing verification.', flags: MessageFlags.Ephemeral });
-      }
-    } else {
-      const embed = new EmbedBuilder()
-        .setTitle('❌ Verification Failed')
-        .setDescription('Incorrect answer. Please try again with `/verify`')
-        .setColor(0xFF0000);
-      
-      await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
-    }
-  } else if (interaction.customId === 'profile_modal') {
-    const inGameName = interaction.fields.getTextInputValue('ingame_name');
-    const timezone = interaction.fields.getTextInputValue('timezone');
-    const languageInput = interaction.fields.getTextInputValue('language').toLowerCase();
-    
-    // Map language to code
-    const language = languageMap[languageInput] || languageInput;
-    
+  if (interaction.customId === 'profile_modal') {
     try {
+      const inGameName = interaction.fields.getTextInputValue('ingame_name');
+      const timezone = interaction.fields.getTextInputValue('timezone');
+      const languageInput = interaction.fields.getTextInputValue('language');
+      const language = languageMap[languageInput.toLowerCase()] || languageInput.toLowerCase();
+      
       await dbHelpers.updateUserProfile(interaction.user.id, {
         inGameName,
         timezone,
         language,
-        profileCompletedAt: new Date().toISOString(),
-        autoTranslate: 1 // Enable auto-translate when language is set
+        autoTranslate: 1,
+        profileCompletedAt: new Date().toISOString()
       });
       
       const embed = new EmbedBuilder()
-        .setTitle('📋 Profile Updated!')
-        .setDescription('Your profile has been successfully updated!')
+        .setTitle('✅ Profile Updated!')
+        .setDescription('Your profile has been successfully updated.')
         .addFields([
-          { name: '🎮 In-Game Name', value: inGameName },
-          { name: '🌍 Timezone', value: timezone },
-          { name: '🌐 Language', value: `${languageInput} (${language})` },
-          { name: '✅ Auto-Translation', value: 'Enabled - you\'ll receive translations in the same channel' }
+          { name: 'In-Game Name', value: inGameName, inline: true },
+          { name: 'Timezone', value: timezone, inline: true },
+          { name: 'Language', value: `${languageInput} (${language})`, inline: true }
         ])
-        .setColor(0x00FF00);
+        .setColor(0x00AE86);
       
       await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
     } catch (error) {
-      console.error('Error updating profile:', error);
+      console.error('Error handling profile modal:', error);
       await interaction.reply({ content: 'Error updating your profile.', flags: MessageFlags.Ephemeral });
     }
+  } else if (interaction.customId.startsWith('verify_modal_')) {
+    const embed = new EmbedBuilder()
+      .setTitle('⚠️ Verification Method Updated')
+      .setDescription('This verification method is no longer used. Please use the `/verify` command to start the new process.')
+      .setColor(0xFFD700);
+    
+    await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
   }
 }
 
@@ -1817,53 +2014,38 @@ async function handleModal(interaction) {
 async function handleContextMenu(interaction) {
   if (interaction.commandName === 'Translate Message') {
     try {
-      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-      
-      const original = interaction.targetMessage.content;
-      if (!original || original.trim() === '') {
-        return interaction.editReply('❌ This message has no text content to translate.');
-      }
-      
-      // Get user's preferred language from profile
+      const message = interaction.targetMessage;
       const userProfile = await dbHelpers.getUserProfile(interaction.user.id);
-      const userLang = userProfile?.language || 'en';
+      const targetLang = userProfile ? userProfile.language : 'en';
       
-      const srcLang = await detectLanguage(original);
-      if (srcLang === userLang) {
-        return interaction.editReply('✅ This message is already in your preferred language!');
+      if (!message.content) {
+        return interaction.reply({ content: '❌ Cannot translate an empty message.', flags: MessageFlags.Ephemeral });
       }
       
-      const translated = await translate(original, userLang);
+      const translated = await translate(message.content, targetLang);
+      const detectedLang = await detectLanguage(message.content);
       
       const embed = new EmbedBuilder()
-        .setTitle(`🌐 Translation (${srcLang} → ${userLang})`)
-        .addFields([
-          { name: 'Original', value: original.length > 1024 ? original.substring(0, 1021) + '...' : original },
-          { name: 'Translated', value: translated.length > 1024 ? translated.substring(0, 1021) + '...' : translated }
-        ])
+        .setAuthor({ 
+          name: `${message.author.username} said:`,
+          iconURL: message.author.displayAvatarURL()
+        })
+        .setDescription(message.content)
+        .addFields({
+          name: `Translated to ${targetLang} (from ${detectedLang})`,
+          value: translated
+        })
         .setColor(0x00AE86)
-        .setTimestamp();
+        .setTimestamp()
+        .setFooter({ text: `Translated for ${interaction.user.username}` });
       
-      await interaction.editReply({ embeds: [embed] });
+      await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
     } catch (error) {
-      console.error('Translation error:', error);
-      try {
-        await interaction.editReply('❌ An error occurred while translating the message.');
-      } catch (replyError) {
-        console.error('Error sending error reply:', replyError);
-      }
+      console.error('Error handling context menu translation:', error);
+      await interaction.reply({ content: 'Error translating message.', flags: MessageFlags.Ephemeral });
     }
   }
 }
 
-// Error handling
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
-});
-
-process.on('uncaughtException', (error) => {
-  console.error('Uncaught Exception:', error);
-});
-
-// Login
+// Login to Discord
 client.login(process.env.BOT_TOKEN || process.env.DISCORD_TOKEN);

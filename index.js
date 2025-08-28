@@ -1458,7 +1458,7 @@ async function handleResetAllCommand(interaction) {
           }
           
           // Send DM if requested
-          if (sendDm) {
+          if (sendDM) {
             try {
               const welcomeMessage = `🌟 Welcome to **${interaction.guild.name}**! 🌟\n\n` +
                 `Hey there, ${member.user.username}! Your verification has been reset and we're excited to have you here!\n\n` +
@@ -1527,7 +1527,7 @@ async function handleResetAllCommand(interaction) {
         { name: '👥 Total Members', value: memberCount.toString(), inline: true },
         { name: '✅ Database Resets', value: successCount.toString(), inline: true },
         { name: '🎭 Role Assignments', value: addRole ? roleSuccessCount.toString() : 'Skipped', inline: true },
-        { name: '📨 DMs Sent', value: sendDm ? dmSuccessCount.toString() : 'Skipped', inline: true },
+        { name: '📨 DMs Sent', value: sendDM ? dmSuccessCount.toString() : 'Skipped', inline: true },
         { name: '🎉 Welcome Messages', value: postWelcome ? welcomeSuccessCount.toString() : 'Skipped', inline: true },
         { name: '⚠️ Errors', value: errors.length.toString(), inline: true },
         { name: '📊 Success Rate', value: `${Math.round((successCount / (memberCount - allMembers.filter(m => m.user.bot).size)) * 100)}%`, inline: true },

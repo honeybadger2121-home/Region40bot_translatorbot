@@ -989,16 +989,54 @@ async function handleManageCommand(interaction) {
 }
 
 async function handleSetupCommand(interaction) {
-  const verificationChannel = interaction.options.getChannel('verification_channel');
-  const welcomeChannel = interaction.options.getChannel('welcome_channel');
-  const modChannel = interaction.options.getChannel('mod_channel');
-  
-  const updateData = {};
-  if (verificationChannel) updateData.verificationChannelId = verificationChannel.id;
-  if (welcomeChannel) updateData.welcomeChannelId = welcomeChannel.id;
-  if (modChannel) updateData.modChannelId = modChannel.id;
-  
   try {
+    // Defer the reply to prevent timeout issues
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    
+    const verificationChannel = interaction.options.getChannel('verification_channel');
+    const welcomeChannel = interaction.options.getChannel('welcome_channel');
+    const modChannel = interaction.options.getChannel('mod_channel');
+    
+    const updateData = {};
+    if (verificationChannel) updateData.verificationChannelId = verificationChannel.id;
+    if (welcomeChannel) updateData.welcomeChannelId = welcomeChannel.id;
+    if (modChannel) updateData.modChannelId = modChannel.id;
+    
+    // Check if any options were provided
+    if (Object.keys(updateData).length === 0) {
+      // No options provided, show current settings
+      const currentSettings = await dbHelpers.getGuildSettings(interaction.guild.id);
+      
+      const embed = new EmbedBuilder()
+        .setTitle('⚙️ Current Server Configuration')
+        .setDescription('Use `/setup` with channel options to update settings.')
+        .setColor(0x00AE86)
+        .addFields([
+          { 
+            name: 'Welcome Channel', 
+            value: currentSettings.welcomeChannelId ? `<#${currentSettings.welcomeChannelId}>` : 'Not set (using system channel)', 
+            inline: true 
+          },
+          { 
+            name: 'Verification Channel', 
+            value: currentSettings.verificationChannelId ? `<#${currentSettings.verificationChannelId}>` : 'Not set', 
+            inline: true 
+          },
+          { 
+            name: 'Mod Channel', 
+            value: currentSettings.modChannelId ? `<#${currentSettings.modChannelId}>` : 'Not set', 
+            inline: true 
+          },
+          {
+            name: 'Usage',
+            value: 'Use `/setup verification_channel:#channel` to set verification channel\nUse `/setup welcome_channel:#channel` to set welcome channel\nUse `/setup mod_channel:#channel` to set mod notifications channel'
+          }
+        ]);
+      
+      return await interaction.editReply({ embeds: [embed] });
+    }
+    
+    // Update settings with provided options
     await dbHelpers.setGuildSettings(interaction.guild.id, updateData);
     
     const embed = new EmbedBuilder()
@@ -1006,14 +1044,26 @@ async function handleSetupCommand(interaction) {
       .setDescription('Bot settings have been updated successfully!')
       .setColor(0x00AE86);
     
-    if (verificationChannel) embed.addFields({ name: 'Verification Channel', value: `<#${verificationChannel.id}>` });
-    if (welcomeChannel) embed.addFields({ name: 'Welcome Channel', value: `<#${welcomeChannel.id}>` });
-    if (modChannel) embed.addFields({ name: 'Mod Channel', value: `<#${modChannel.id}>` });
+    if (verificationChannel) {
+      embed.addFields({ name: 'Verification Channel', value: `<#${verificationChannel.id}>`, inline: true });
+    }
+    if (welcomeChannel) {
+      embed.addFields({ name: 'Welcome Channel', value: `<#${welcomeChannel.id}>`, inline: true });
+    }
+    if (modChannel) {
+      embed.addFields({ name: 'Mod Channel', value: `<#${modChannel.id}>`, inline: true });
+    }
     
-    await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
+    await interaction.editReply({ embeds: [embed] });
   } catch (error) {
-    console.error('Error updating settings:', error);
-    await interaction.reply({ content: 'Error updating server settings.', flags: MessageFlags.Ephemeral });
+    console.error('Error in setup command:', error);
+    
+    // Try to respond appropriately based on whether we deferred or not
+    if (interaction.deferred) {
+      await interaction.editReply({ content: 'Error updating server settings. Please try again.' });
+    } else {
+      await interaction.reply({ content: 'Error updating server settings. Please try again.', flags: MessageFlags.Ephemeral });
+    }
   }
 }
 

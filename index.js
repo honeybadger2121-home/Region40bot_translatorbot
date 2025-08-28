@@ -662,52 +662,32 @@ client.on('messageCreate', async (message) => {
         if (translated && translated.toLowerCase() !== message.content.toLowerCase()) {
           const usersForThisLang = usersWithAutoTranslate.filter(u => u.language === targetLang);
           
-          // Create a mention string for users who will see this translation
-          const mentionString = usersForThisLang.map(u => `<@${u.userId}>`).join(' ');
-          
-          const translationEmbed = new EmbedBuilder()
-            .setAuthor({ 
-              name: `${message.author.username} (${detectedLang} → ${targetLang})`,
-              iconURL: message.author.displayAvatarURL()
-            })
-            .setDescription(translated)
-            .setColor(0x00AE86)
-            .setTimestamp()
-            .setFooter({ text: `Auto-translation for ${targetLang} speakers` });
-          
-          await message.channel.send({ 
-            content: mentionString, 
-            embeds: [translationEmbed] 
-          });
+          // Send private DM to each user who wants this language
+          for (const userProfile of usersForThisLang) {
+            try {
+              const user = await client.users.fetch(userProfile.userId);
+              
+              const translationEmbed = new EmbedBuilder()
+                .setAuthor({ 
+                  name: `${message.author.username} in #${message.channel.name}`,
+                  iconURL: message.author.displayAvatarURL()
+                })
+                .setDescription(`**Original (${detectedLang}):** ${message.content}\n\n**Translation (${targetLang}):** ${translated}`)
+                .setColor(0x00AE86)
+                .setTimestamp()
+                .setFooter({ text: `Auto-translation from ${message.guild.name}` });
+              
+              await user.send({ embeds: [translationEmbed] });
+            } catch (error) {
+              console.error(`Failed to send translation DM to user ${userProfile.userId}:`, error);
+            }
+          }
         }
       }
     }
     
-    // Server-wide auto-translation (fallback)
-    const guildSettings = await dbHelpers.getGuildSettings(message.guild.id);
-    if (guildSettings.autoTranslateEnabled && usersWithAutoTranslate.length === 0) {
-      const detectedLang = await detectLanguage(message.content);
-      
-      // Skip translation if detected language matches target language
-      if (detectedLang !== guildSettings.targetLanguage) {
-        const translated = await translate(message.content, guildSettings.targetLanguage);
-        
-        // Only send translation if it's actually different from the original
-        if (translated && translated.toLowerCase() !== message.content.toLowerCase()) {
-          const translationEmbed = new EmbedBuilder()
-            .setAuthor({ 
-              name: `${message.author.username} (${detectedLang} → ${guildSettings.targetLanguage})`,
-              iconURL: message.author.displayAvatarURL()
-            })
-            .setDescription(translated)
-            .setColor(0x00AE86)
-            .setTimestamp()
-            .setFooter({ text: `Server-wide translation` });
-          
-          await message.channel.send({ embeds: [translationEmbed] });
-        }
-      }
-    }
+    // Note: Server-wide auto-translation removed in favor of private user translations
+    // Users can enable auto-translate in their profiles to receive private DM translations
   } catch (error) {
     console.error('Error in message auto-translation:', error);
   }

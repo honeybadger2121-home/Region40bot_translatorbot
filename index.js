@@ -557,16 +557,65 @@ client.on('messageCreate', async (message) => {
     try {
       const userProfile = await dbHelpers.getUserProfile(message.author.id);
       
-      if (userProfile && !userProfile.verified) {
-        const userMessage = message.content.trim().toLowerCase();
-        
-        if (userMessage === 'verify') {
+      // Handle "verify" command for verification and onboarding start
+      if (message.content.trim().toLowerCase() === 'verify') {
+        if (!userProfile) {
+          // Create new profile and start verification
+          await dbHelpers.setUserProfile(message.author.id, { 
+            verified: 1,
+            onboardingStep: 'profile'
+          });
+          
+          // Remove not-onboarded role from all guilds
+          for (const guild of client.guilds.cache.values()) {
+            try {
+              const member = await guild.members.fetch(message.author.id).catch(() => null);
+              if (member) {
+                const notOnboardedRole = guild.roles.cache.find(role => role.name === 'not-onboarded');
+                if (notOnboardedRole && member.roles.cache.has(notOnboardedRole.id)) {
+                  await member.roles.remove(notOnboardedRole, 'Completed verification process');
+                  console.log(`Removed "not-onboarded" role from ${member.user.username}`);
+                }
+              }
+            } catch (error) {
+              console.error(`Error removing role in guild ${guild.name}:`, error);
+            }
+          }
+          
+          await startAutomatedOnboarding(message.author);
+        } else if (!userProfile.verified) {
+          // User exists but not verified - verify them
+          await dbHelpers.updateUserProfile(message.author.id, { 
+            verified: 1,
+            onboardingStep: 'profile'
+          });
+          
+          // Remove not-onboarded role from all guilds
+          for (const guild of client.guilds.cache.values()) {
+            try {
+              const member = await guild.members.fetch(message.author.id).catch(() => null);
+              if (member) {
+                const notOnboardedRole = guild.roles.cache.find(role => role.name === 'not-onboarded');
+                if (notOnboardedRole && member.roles.cache.has(notOnboardedRole.id)) {
+                  await member.roles.remove(notOnboardedRole, 'Completed verification process');
+                  console.log(`Removed "not-onboarded" role from ${member.user.username}`);
+                }
+              }
+            } catch (error) {
+              console.error(`Error removing role in guild ${guild.name}:`, error);
+            }
+          }
+          
+          await startAutomatedOnboarding(message.author);
+        } else if (!userProfile.onboardingStep || userProfile.onboardingStep === 'pending') {
+          // User is verified but hasn't started onboarding yet
           await startAutomatedOnboarding(message.author);
         } else {
+          // User is already in onboarding process
           const errorEmbed = new EmbedBuilder()
-            .setTitle('❌ Invalid Command')
-            .setDescription('Please reply with "verify" to start the verification process.')
-            .setColor(0xFF6B6B);
+            .setTitle('ℹ️ Already Started')
+            .setDescription('You\'ve already started the onboarding process. Please continue with the current step.')
+            .setColor(0x3498DB);
           
           await message.author.send({ embeds: [errorEmbed] });
         }
@@ -579,38 +628,64 @@ client.on('messageCreate', async (message) => {
     return;
   }
   
-  // Existing auto-translation logic for guild messages
+  // Auto-translation logic for guild messages
   if (!message.guild || !message.content.trim()) return;
   
   try {
-    const userProfile = await dbHelpers.getUserProfile(message.author.id);
-    if (userProfile && userProfile.autoTranslate && userProfile.language) {
+    // Get all users in the guild who have auto-translate enabled
+    const allProfiles = await new Promise((resolve, reject) => {
+      db.all(`SELECT userId, language FROM profiles WHERE autoTranslate = 1 AND language IS NOT NULL`, [], (err, rows) => {
+        if (err) reject(err);
+        else resolve(rows || []);
+      });
+    });
+    
+    // Filter to only users who are in this guild
+    const guildMembers = await message.guild.members.fetch();
+    const usersWithAutoTranslate = allProfiles.filter(profile => 
+      guildMembers.has(profile.userId) && profile.userId !== message.author.id // Don't translate for the sender
+    );
+    
+    if (usersWithAutoTranslate.length > 0) {
       const detectedLang = await detectLanguage(message.content);
       
-      // Skip translation if detected language matches target language
-      if (detectedLang !== userProfile.language) {
-        const translated = await translate(message.content, userProfile.language);
+      // Create translations for each user's preferred language
+      const languagesNeeded = [...new Set(usersWithAutoTranslate.map(u => u.language))];
+      
+      for (const targetLang of languagesNeeded) {
+        // Skip if detected language matches target language
+        if (detectedLang === targetLang) continue;
+        
+        const translated = await translate(message.content, targetLang);
         
         // Only send translation if it's actually different from the original
         if (translated && translated.toLowerCase() !== message.content.toLowerCase()) {
+          const usersForThisLang = usersWithAutoTranslate.filter(u => u.language === targetLang);
+          
+          // Create a mention string for users who will see this translation
+          const mentionString = usersForThisLang.map(u => `<@${u.userId}>`).join(' ');
+          
           const translationEmbed = new EmbedBuilder()
             .setAuthor({ 
-              name: `${message.author.username} (${detectedLang} → ${userProfile.language})`,
+              name: `${message.author.username} (${detectedLang} → ${targetLang})`,
               iconURL: message.author.displayAvatarURL()
             })
             .setDescription(translated)
             .setColor(0x00AE86)
             .setTimestamp()
-            .setFooter({ text: `Personal translation for ${message.author.username}` });
+            .setFooter({ text: `Auto-translation for ${targetLang} speakers` });
           
-          await message.channel.send({ embeds: [translationEmbed] });
+          await message.channel.send({ 
+            content: mentionString, 
+            embeds: [translationEmbed] 
+          });
         }
-        return;
       }
     }
     
+    // Server-wide auto-translation (fallback)
     const guildSettings = await dbHelpers.getGuildSettings(message.guild.id);
-    if (guildSettings.autoTranslateEnabled) {
+    if (guildSettings.autoTranslateEnabled && usersWithAutoTranslate.length === 0) {
       const detectedLang = await detectLanguage(message.content);
       
       // Skip translation if detected language matches target language
@@ -736,21 +811,17 @@ async function handleSlashCommand(interaction) {
 // Command implementations
 async function handleVerifyCommand(interaction) {
   const embed = new EmbedBuilder()
-    .setTitle('✅ Simple Verification')
-    .setDescription('Click the button below to complete verification. After verification, you\'ll need to **send me a DM with "verify"** to start the onboarding process.')
+    .setTitle('📨 Verification Instructions')
+    .setDescription('To verify and start your onboarding process:\n\n**1.** Click on my name (Region40Bot)\n**2.** Send me a direct message\n**3.** Type: `verify`\n**4.** Follow the onboarding steps')
+    .addFields([
+      { name: '💬 What to do', value: 'Send me a DM with the word "verify"' },
+      { name: '🤖 Where to find me', value: 'Click on "Region40Bot" in the member list or this message' },
+      { name: '⏰ What happens next', value: 'I\'ll guide you through profile setup and alliance selection' }
+    ])
     .setColor(0x00FF00)
-    .setFooter({ text: 'Step 1: Click button → Step 2: DM me "verify" → Step 3: Complete profile setup' });
+    .setFooter({ text: 'Simple verification: Just DM me "verify" to get started!' });
   
-  const button = new ActionRowBuilder()
-    .addComponents(
-      new ButtonBuilder()
-        .setCustomId('simple_verify')
-        .setLabel('✅ Complete Verification')
-        .setStyle(ButtonStyle.Success)
-        .setEmoji('🎉')
-    );
-  
-  await interaction.reply({ embeds: [embed], components: [button], flags: MessageFlags.Ephemeral });
+  await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
 }
 
 async function handleProfileCommand(interaction) {
@@ -2101,37 +2172,12 @@ async function handleButton(interaction) {
   const customId = interaction.customId;
   
   if (customId === 'simple_verify') {
-    try {
-      await dbHelpers.setUserProfile(interaction.user.id, { 
-        verified: 1
-      });
-      
-      // Check if guild and member exist
-      if (interaction.guild && interaction.guild.members) {
-        const member = interaction.guild.members.cache.get(interaction.user.id);
-        if (member) {
-          const notOnboardedRole = interaction.guild.roles.cache.find(role => role.name === 'not-onboarded');
-          if (notOnboardedRole && member.roles.cache.has(notOnboardedRole.id)) {
-            try {
-              await member.roles.remove(notOnboardedRole, 'Completed verification process');
-              console.log(`Removed "not-onboarded" role from ${member.user.username}`);
-            } catch (roleRemoveError) {
-              console.error('Error removing not-onboarded role:', roleRemoveError);
-            }
-          }
-        }
-      }
-      
-      const embed = new EmbedBuilder()
-        .setTitle('✅ Verification Successful!')
-        .setDescription('You have been verified! Now please **send me a DM with the word "verify"** to start your onboarding process.\n\n**Instructions:**\n1. Click on my name (Region40Bot)\n2. Send me a direct message\n3. Type: `verify`\n4. Follow the onboarding steps')
-        .setColor(0x00FF00);
-      
-      await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
-    } catch (error) {
-      console.error('Error verifying user:', error);
-      await interaction.reply({ content: 'Error completing verification.', flags: MessageFlags.Ephemeral });
-    }
+    const embed = new EmbedBuilder()
+      .setTitle('⚠️ Verification Method Updated')
+      .setDescription('The verification button is no longer used. Please **send me a direct message** with the word `verify` to complete verification and start onboarding.\n\n**Instructions:**\n1. Click on my name (Region40Bot)\n2. Send me a direct message\n3. Type: `verify`')
+      .setColor(0xFFD700);
+    
+    await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
   } else if (customId.startsWith('verify_')) {
     const embed = new EmbedBuilder()
       .setTitle('⚠️ Verification Method Updated')

@@ -340,6 +340,16 @@ const commands = [
       type: 5, // BOOLEAN
       description: 'Also add "not-onboarded" role to all members (default: true)',
       required: false
+    }, {
+      name: 'send_dm',
+      type: 5, // BOOLEAN
+      description: 'Send verification DM to all reset members (default: false)',
+      required: false
+    }, {
+      name: 'post_welcome',
+      type: 5, // BOOLEAN
+      description: 'Post new welcome messages for all reset members (default: false)',
+      required: false
     }]
   },
   {
@@ -1280,6 +1290,8 @@ async function handleResetAllCommand(interaction) {
   try {
     const confirm = interaction.options.getBoolean('confirm');
     const addRole = interaction.options.getBoolean('add_role') !== false; // Default true
+    const sendDM = interaction.options.getBoolean('send_dm') || false; // Default false
+    const postWelcome = interaction.options.getBoolean('post_welcome') || false; // Default false
     
     if (!confirm) {
       return interaction.reply({ 
@@ -1298,6 +1310,13 @@ async function handleResetAllCommand(interaction) {
         content: '❌ I don\'t have permission to manage roles. Please give me the "Manage Roles" permission or set `add_role` to `False`.' 
       });
     }
+    
+    // Get guild settings for welcome channel
+    const guildSettings = await dbHelpers.getGuildSettings(interaction.guild.id);
+    const welcomeChannelId = guildSettings.welcomeChannelId;
+    const welcomeChannel = welcomeChannelId ? 
+      interaction.guild.channels.cache.get(welcomeChannelId) : 
+      interaction.guild.systemChannel;
     
     const notOnboardedRole = interaction.guild.roles.cache.find(role => role.name === 'not-onboarded');
     
@@ -1325,6 +1344,8 @@ async function handleResetAllCommand(interaction) {
     let processedCount = 0;
     let successCount = 0;
     let roleSuccessCount = 0;
+    let dmSuccessCount = 0;
+    let welcomeSuccessCount = 0;
     let errors = [];
     
     // Update progress embed
@@ -1369,6 +1390,43 @@ async function handleResetAllCommand(interaction) {
             }
           }
           
+          // Send DM if requested
+          if (sendDm) {
+            try {
+              const welcomeMessage = `🌟 Welcome to **${interaction.guild.name}**! 🌟\n\n` +
+                `Hey there, ${member.user.username}! Your verification has been reset and we're excited to have you here!\n\n` +
+                `🔗 **Please click this link to verify your account:**\n` +
+                `https://discord.com/oauth2/authorize?client_id=${process.env.CLIENT_ID}&redirect_uri=${encodeURIComponent(process.env.REDIRECT_URI)}&response_type=code&scope=identify%20guilds.join&state=${encodeURIComponent(interaction.guild.id)}\n\n` +
+                `✨ Once verified, you'll have full access to all our channels and features!\n\n` +
+                `If you have any questions, feel free to ask our friendly community. We're here to help! 💙`;
+
+              await member.send(welcomeMessage);
+              dmSuccessCount++;
+            } catch (dmError) {
+              errors.push(`DM failed for ${member.user.username}: ${dmError.message}`);
+            }
+          }
+          
+          // Post welcome message if requested
+          if (postWelcome && welcomeChannelId) {
+            try {
+              const welcomeChannel = interaction.guild.channels.cache.get(welcomeChannelId);
+              if (welcomeChannel) {
+                const welcomeEmbed = new EmbedBuilder()
+                  .setTitle('🌟 Welcome Back!')
+                  .setDescription(`Hey ${member}! Your verification has been reset. Please check your DMs for the verification link!`)
+                  .setColor(0x00FF00)
+                  .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
+                  .setTimestamp();
+
+                await welcomeChannel.send({ embeds: [welcomeEmbed] });
+                welcomeSuccessCount++;
+              }
+            } catch (welcomeError) {
+              errors.push(`Welcome message failed for ${member.user.username}: ${welcomeError.message}`);
+            }
+          }
+          
         } catch (error) {
           errors.push(`Database reset failed for ${member.user.username}: ${error.message}`);
         } finally {
@@ -1402,6 +1460,8 @@ async function handleResetAllCommand(interaction) {
         { name: '👥 Total Members', value: memberCount.toString(), inline: true },
         { name: '✅ Database Resets', value: successCount.toString(), inline: true },
         { name: '🎭 Role Assignments', value: addRole ? roleSuccessCount.toString() : 'Skipped', inline: true },
+        { name: '📨 DMs Sent', value: sendDm ? dmSuccessCount.toString() : 'Skipped', inline: true },
+        { name: '🎉 Welcome Messages', value: postWelcome ? welcomeSuccessCount.toString() : 'Skipped', inline: true },
         { name: '⚠️ Errors', value: errors.length.toString(), inline: true },
         { name: '📊 Success Rate', value: `${Math.round((successCount / (memberCount - allMembers.filter(m => m.user.bot).size)) * 100)}%`, inline: true },
         { name: '⏱️ Processing Time', value: 'Complete', inline: true }

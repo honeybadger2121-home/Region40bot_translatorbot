@@ -22,9 +22,41 @@ const {
 } = require('discord.js');
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
+const fs = require('fs');
 const cron = require('node-cron');
 const translateAPI = require('@vitalets/google-translate-api');
 const { joinVoiceChannel, EndBehaviorType, createAudioReceiver } = require('@discordjs/voice');
+
+// Create logs directory if it doesn't exist
+const logsDir = path.join(__dirname, 'logs');
+if (!fs.existsSync(logsDir)) {
+  fs.mkdirSync(logsDir);
+}
+
+// Logging functions
+function logTranslation(message) {
+  const timestamp = new Date().toISOString();
+  const logEntry = `[${timestamp}] ${message}\n`;
+  
+  // Console log
+  console.log(`[TRANSLATION] ${message}`);
+  
+  // File log
+  const logFile = path.join(logsDir, `translation-${new Date().toISOString().split('T')[0]}.log`);
+  fs.appendFileSync(logFile, logEntry);
+}
+
+function logVerification(message) {
+  const timestamp = new Date().toISOString();
+  const logEntry = `[${timestamp}] ${message}\n`;
+  
+  // Console log
+  console.log(`[VERIFICATION] ${message}`);
+  
+  // File log
+  const logFile = path.join(logsDir, `verification-${new Date().toISOString().split('T')[0]}.log`);
+  fs.appendFileSync(logFile, logEntry);
+}
 
 // Initialize client with all required intents
 const client = new Client({
@@ -451,6 +483,13 @@ const contextCommands = [
 // Event handlers
 client.once(Events.ClientReady, async () => {
   console.log(`✅ ${client.user.tag} is online!`);
+  logVerification(`Bot started: ${client.user.tag} is online`);
+  logTranslation(`Translation system initialized`);
+  
+  // Log directory info
+  console.log(`📂 Logs will be saved to: ${logsDir}`);
+  console.log(`📄 Translation logs: translation-YYYY-MM-DD.log`);
+  console.log(`📄 Verification logs: verification-YYYY-MM-DD.log`);
   
   // Register slash commands
   try {
@@ -539,9 +578,9 @@ client.on('guildMemberAdd', async (member) => {
         .setThumbnail(member.guild.iconURL());
       
       await member.send({ embeds: [dmEmbed] });
-      console.log(`Sent welcome DM to ${member.user.username}`);
+      logVerification(`Sent welcome DM to ${member.user.username}`);
     } catch (dmError) {
-      console.log(`Could not send DM to ${member.user.username}:`, dmError.message);
+      logVerification(`Could not send DM to ${member.user.username}: ${dmError.message}`);
     }
   } catch (error) {
     console.error('Error in guildMemberAdd:', error);
@@ -561,6 +600,7 @@ client.on('messageCreate', async (message) => {
       if (message.content.trim().toLowerCase() === 'verify') {
         if (!userProfile) {
           // Create new profile and start verification
+          logVerification(`Creating new profile for ${message.author.username}`);
           await dbHelpers.setUserProfile(message.author.id, { 
             verified: 1,
             onboardingStep: 'profile'
@@ -574,17 +614,18 @@ client.on('messageCreate', async (message) => {
                 const notOnboardedRole = guild.roles.cache.find(role => role.name === 'not-onboarded');
                 if (notOnboardedRole && member.roles.cache.has(notOnboardedRole.id)) {
                   await member.roles.remove(notOnboardedRole, 'Completed verification process');
-                  console.log(`Removed "not-onboarded" role from ${member.user.username}`);
+                  logVerification(`Removed "not-onboarded" role from ${member.user.username} in ${guild.name}`);
                 }
               }
             } catch (error) {
-              console.error(`Error removing role in guild ${guild.name}:`, error);
+              logVerification(`Error removing role in guild ${guild.name}: ${error.message}`);
             }
           }
           
           await startAutomatedOnboarding(message.author);
         } else if (!userProfile.verified) {
           // User exists but not verified - verify them
+          logVerification(`Verifying existing user ${message.author.username}`);
           await dbHelpers.updateUserProfile(message.author.id, { 
             verified: 1,
             onboardingStep: 'profile'
@@ -598,11 +639,11 @@ client.on('messageCreate', async (message) => {
                 const notOnboardedRole = guild.roles.cache.find(role => role.name === 'not-onboarded');
                 if (notOnboardedRole && member.roles.cache.has(notOnboardedRole.id)) {
                   await member.roles.remove(notOnboardedRole, 'Completed verification process');
-                  console.log(`Removed "not-onboarded" role from ${member.user.username}`);
+                  logVerification(`Removed "not-onboarded" role from ${member.user.username} in ${guild.name}`);
                 }
               }
             } catch (error) {
-              console.error(`Error removing role in guild ${guild.name}:`, error);
+              logVerification(`Error removing role in guild ${guild.name}: ${error.message}`);
             }
           }
           
@@ -659,13 +700,13 @@ client.on('messageCreate', async (message) => {
       profile.userId !== message.author.id
     );
     
-    console.log(`Guild: ${message.guild.name}, Channel: #${message.channel.name}`);
-    console.log(`Users with auto-translate in this guild: ${usersWithAutoTranslate.length}`);
-    console.log(`Languages needed: ${usersWithAutoTranslate.map(u => u.language).join(', ')}`);
+    logTranslation(`Guild: ${message.guild.name}, Channel: #${message.channel.name}`);
+    logTranslation(`Users with auto-translate in this guild: ${usersWithAutoTranslate.length}`);
+    logTranslation(`Languages needed: ${usersWithAutoTranslate.map(u => u.language).join(', ')}`);
     
     if (usersWithAutoTranslate.length > 0) {
       const detectedLang = await detectLanguage(message.content);
-      console.log(`Detected language: ${detectedLang}`);
+      logTranslation(`Detected language: ${detectedLang}`);
       
       // Create translations for each user individually
       for (const userProfile of usersWithAutoTranslate) {
@@ -673,7 +714,7 @@ client.on('messageCreate', async (message) => {
         
         // Skip if detected language matches target language
         if (detectedLang === targetLang) {
-          console.log(`Skipping translation for user ${userProfile.userId} - same language (${detectedLang})`);
+          logTranslation(`Skipping translation for user ${userProfile.userId} - same language (${detectedLang})`);
           continue;
         }
         
@@ -695,9 +736,9 @@ client.on('messageCreate', async (message) => {
               .setFooter({ text: `Auto-translation from ${message.guild.name}` });
             
             await user.send({ embeds: [translationEmbed] });
-            console.log(`Sent ${detectedLang}→${targetLang} translation to ${user.username}`);
+            logTranslation(`Sent ${detectedLang}→${targetLang} translation to ${user.username}`);
           } catch (error) {
-            console.error(`Failed to send translation DM to user ${userProfile.userId}:`, error);
+            logTranslation(`Failed to send translation DM to user ${userProfile.userId}: ${error.message}`);
           }
         }
       }
@@ -1306,7 +1347,7 @@ async function startAutomatedOnboarding(user) {
       .setFooter({ text: '⏰ Please reply with: IGN | Timezone | Language (separated by | symbol)' });
     
     await user.send({ embeds: [profileEmbed] });
-    console.log(`Sent profile setup message to ${user.username}`);
+    logVerification(`Sent profile setup message to ${user.username}`);
     
   } catch (error) {
     console.error('Error in automated onboarding:', error);

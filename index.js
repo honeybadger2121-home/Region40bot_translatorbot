@@ -126,6 +126,24 @@ const db = new sqlite3.Database('combined_bot.db', (err) => {
             }
         });
 
+        // Schema migration: Add devChannelId if it doesn't exist
+        db.all("PRAGMA table_info(guild_settings)", (err, columns) => {
+            if (err) {
+                console.error("Error checking guild_settings table info:", err);
+                return;
+            }
+            const hasDevChannelId = columns.some(col => col.name === 'devChannelId');
+            if (!hasDevChannelId) {
+                db.run("ALTER TABLE guild_settings ADD COLUMN devChannelId TEXT", (alterErr) => {
+                    if (alterErr) {
+                        console.error("Error adding devChannelId column to guild_settings:", alterErr);
+                    } else {
+                        console.log("✅ Successfully added 'devChannelId' column to guild_settings table.");
+                    }
+                });
+            }
+        });
+
         console.log('✅ Database initialized with combined tables');
     });
   }

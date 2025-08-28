@@ -142,6 +142,7 @@ const recentlyJoined = new Set();
 // Language mapping
 const languageMap = {
   'english': 'en',
+  'eng': 'en',
   'spanish': 'es',
   'french': 'fr',
   'german': 'de',

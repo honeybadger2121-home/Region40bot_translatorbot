@@ -142,6 +142,7 @@ const recentlyJoined = new Set();
 // Language mapping
 const languageMap = {
   'english': 'en',
+  'english.': 'en',
   'eng': 'en',
   'spanish': 'es',
   'french': 'fr',
@@ -262,23 +263,8 @@ async function translate(text, target) {
     // Remove any trailing punctuation or invalid characters
     cleanTarget = cleanTarget.replace(/[^a-z]/g, '');
     
-    // Map common language names to proper codes
-    const languageCodeMap = {
-      'english': 'en',
-      'french': 'fr',
-      'spanish': 'es',
-      'german': 'de',
-      'italian': 'it',
-      'portuguese': 'pt',
-      'russian': 'ru',
-      'japanese': 'ja',
-      'chinese': 'zh',
-      'korean': 'ko',
-      'arabic': 'ar'
-    };
-    
-    // Use mapped code if available, otherwise use cleaned input
-    const targetCode = languageCodeMap[cleanTarget] || cleanTarget;
+    // Use the main languageMap for consistency
+    const targetCode = languageMap[cleanTarget] || cleanTarget;
     
     // Validate that we have a proper 2-letter language code
     if (!targetCode || targetCode.length !== 2) {
@@ -320,7 +306,7 @@ const commands = [
     options: [{
       name: 'language',
       type: 3, // STRING
-      description: 'Language name or code (e.g., english, spanish, fr)',
+      description: 'Language code (en, es, fr, de, it, pt, ru, ja, zh, ko, ar, etc.) or full name',
       required: true
     }]
   },
@@ -712,9 +698,10 @@ client.on('messageCreate', async (message) => {
       // Group users by target language to reduce message count
       const usersByLanguage = {};
       for (const userProfile of usersWithAutoTranslate) {
-        const targetLang = userProfile.language;
+        // Apply language mapping to convert variations like "eng" to "en"
+        const targetLang = languageMap[userProfile.language.toLowerCase()] || userProfile.language.toLowerCase();
         
-        // Skip if detected language matches target language
+        // Skip if detected language matches target language (no translation needed)
         if (detectedLang === targetLang) {
           logTranslation(`Skipping translation for user ${userProfile.userId} - same language (${detectedLang})`);
           continue;
@@ -733,35 +720,49 @@ client.on('messageCreate', async (message) => {
         // Only send translation if it's actually different from the original
         if (translated && translated.toLowerCase() !== message.content.toLowerCase()) {
           try {
-            const mentions = users.map(u => `<@${u.userId}>`).join(' ');
-            
-            const translationEmbed = new EmbedBuilder()
-              .setAuthor({ 
-                name: `Translation (${detectedLang} → ${targetLang})`,
-                iconURL: message.author.displayAvatarURL()
-              })
-              .setDescription(`**${message.author.username}:** ${translated}`)
-              .setColor(0x00AE86)
-              .setTimestamp()
-              .setFooter({ text: `Auto-translation • Will disappear in 30s` });
-            
-            // Send as reply to original message with mentions
-            const translationMessage = await message.reply({ 
-              content: mentions, 
-              embeds: [translationEmbed] 
-            });
-            
-            // Delete the translation message after 30 seconds to keep channel clean
-            setTimeout(async () => {
+            // Send DM to each user who needs this translation
+            for (const userProfile of users) {
               try {
-                await translationMessage.delete();
-              } catch (deleteError) {
-                logTranslation(`Could not delete translation message: ${deleteError.message}`);
+                const user = await client.users.fetch(userProfile.userId);
+                
+                const translationEmbed = new EmbedBuilder()
+                  .setAuthor({ 
+                    name: `Translation from #${message.channel.name}`,
+                    iconURL: message.author.displayAvatarURL()
+                  })
+                  .setDescription(`**${message.author.username}:** ${message.content}\n\n**Translation (${detectedLang} → ${targetLang}):** ${translated}`)
+                  .setColor(0x00AE86)
+                  .setTimestamp()
+                  .setFooter({ text: `Auto-translation • Private to you only` });
+                
+                await user.send({ embeds: [translationEmbed] });
+                logTranslation(`Sent private DM translation to user ${userProfile.userId}`);
+                
+              } catch (dmError) {
+                // If DM fails, try to create a temporary message in channel that auto-deletes very quickly
+                try {
+                  const tempMessage = await message.channel.send({
+                    content: `<@${userProfile.userId}> You have DMs disabled. Translation: ${translated}`,
+                    allowedMentions: { users: [userProfile.userId] }
+                  });
+                  
+                  // Delete immediately after 3 seconds since DMs failed
+                  setTimeout(async () => {
+                    try {
+                      await tempMessage.delete();
+                    } catch (deleteError) {
+                      // Message might already be deleted
+                    }
+                  }, 3000);
+                  
+                  logTranslation(`Sent temporary channel message to user ${userProfile.userId} (DMs disabled)`);
+                } catch (channelError) {
+                  logTranslation(`Failed to send translation to user ${userProfile.userId}: ${channelError.message}`);
+                }
               }
-            }, 30000);
+            }
             
-            const usernames = users.map(u => u.userId).join(', ');
-            logTranslation(`Sent ${detectedLang}→${targetLang} translation in channel for users: ${usernames}`);
+            logTranslation(`Sent ${detectedLang}→${targetLang} translation in channel for users: ${users.map(u => u.userId).join(', ')}`);
           } catch (error) {
             logTranslation(`Failed to send translation in channel for ${targetLang}: ${error.message}`);
           }
@@ -1366,7 +1367,7 @@ async function startAutomatedOnboarding(user) {
       .addFields([
         { name: '🎮 In-Game Name', value: 'What is your in-game name?' },
         { name: '🌍 Timezone/Country', value: 'What timezone/country are you in? (e.g., EST, PST, UK, Germany)' },
-        { name: '🌐 Language', value: 'What is your preferred language? (e.g., English, Spanish, French)' }
+        { name: '🌐 Language', value: 'What is your preferred language?\n\n**Available codes:**\n`en` (English), `es` (Spanish), `fr` (French), `de` (German), `it` (Italian), `pt` (Portuguese), `ru` (Russian), `ja` (Japanese), `zh` (Chinese), `ko` (Korean), `ar` (Arabic), `nl` (Dutch), `pl` (Polish), `sv` (Swedish), `no` (Norwegian), `da` (Danish), `fi` (Finnish), `cs` (Czech), `hu` (Hungarian), `ro` (Romanian), `bg` (Bulgarian), `el` (Greek), `he` (Hebrew), `hi` (Hindi), `th` (Thai), `vi` (Vietnamese)\n\nYou can use either the code (e.g., `en`) or full name (e.g., `English`).' }
       ])
       .setColor(0x00FF00)
       .setFooter({ text: '⏰ Please reply with: IGN | Timezone | Language (separated by | symbol)' });

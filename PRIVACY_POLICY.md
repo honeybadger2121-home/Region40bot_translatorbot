@@ -1,68 +1,114 @@
 # Privacy Policy
 
-**Effective Date:** August 27, 2025  
-**Last Updated:** August 27, 2025
+**Effective Date:** August 28, 2025  
+**Last Updated:** August 28, 2025
 
 ## 1. Introduction
 
-This Privacy Policy describes how the Combined Discord Bot ("we," "our," or "the Bot") collects, uses, and protects your information when you use our Discord bot service. We are committed to protecting your privacy and handling your data responsibly.
+This Privacy Policy describes how the Region40Bot ("we," "our," or "the Bot") collects, uses, and protects your information when you use our Discord bot service. We are committed to protecting your privacy and handling your data responsibly in accordance with applicable privacy laws and Discord's Developer Terms of Service.
 
 ## 2. Information We Collect
 
 ### 2.1 Automatically Collected Information
-- **Discord User ID**: Your unique Discord identifier
+When you interact with the Bot, we automatically collect:
+- **Discord User ID**: Your unique Discord identifier (required for all Bot functions)
 - **Discord Username**: Your current Discord username and discriminator
-- **Server Membership**: Information about which servers you share with the Bot
-- **Message Content**: Temporarily processed for translation purposes only
-- **Interaction Data**: Commands used, interaction timestamps, and usage patterns
-- **Voice Data**: Temporarily processed for voice translation (not permanently stored)
+- **Server Membership**: Information about which Discord servers you share with the Bot
+- **Interaction Data**: Commands used, interaction timestamps, and usage patterns for service improvement
+- **Message Metadata**: Message timestamps, channel information, and server context (for translation services)
+- **Presence Information**: Online/offline status for smart message deletion timing (if Discord Presence Intent is enabled)
 
 ### 2.2 User-Provided Information
-During the onboarding and usage process, you may provide:
-- **In-Game Name**: Your preferred in-game identifier
-- **Timezone/Country**: Your geographical location or timezone preference
-- **Language Preference**: Your preferred language for communication and translation
-- **Alliance Selection**: Your chosen alliance or faction within the server
-- **Profile Information**: Any additional information you voluntarily provide
+During onboarding, verification, and Bot usage, you may voluntarily provide:
+- **In-Game Name**: Your preferred gaming identifier or display name
+- **Timezone/Country**: Your geographical location preference for coordination purposes
+- **Language Preference**: Your preferred language for communication and auto-translation services
+- **Alliance Selection**: Your chosen alliance, faction, or group within the server community
+- **Profile Information**: Any additional information you choose to share during profile setup
 
-### 2.3 Server-Specific Information
-- **Role Assignments**: Roles assigned through the Bot's onboarding process
-- **Nickname Changes**: Automated nickname updates based on your profile
-- **Verification Status**: Whether you've completed the onboarding process
-- **Translation Preferences**: Your auto-translation settings and language choices
-- **Guild Settings**: Server-wide configuration preferences set by administrators
+### 2.3 Message Content (Temporary Processing Only)
+- **Translation Processing**: Message content is temporarily processed by Google Translate API for translation services
+- **No Permanent Storage**: Original message content is NOT permanently stored in our databases
+- **Cache Duration**: Translation results may be cached for up to 24 hours to improve performance and reduce API costs
+- **Automatic Deletion**: All message content and translations are automatically deleted from our systems
 
-### 2.4 Technical Information
-- **Command Usage**: Statistics on which commands and features are used
-- **Language Detection**: Frequency and accuracy of detected languages
-- **Performance Metrics**: Response times, cache performance, and system diagnostics
-- **Error Logs**: Technical errors for debugging and improvement purposes
+### 2.4 Technical and Usage Information
+- **Command Usage Statistics**: Frequency and types of commands used (anonymized)
+- **Translation Language Patterns**: Popular language combinations and translation frequency (anonymized)
+- **Error Logs**: Technical errors and debugging information (personal data excluded)
+- **Performance Metrics**: Response times, uptime statistics, and system performance data
 
 ## 3. How We Use Your Information
 
-### 3.1 Primary Purposes
+### 3.1 Primary Service Functions
 We use your information to:
-- **Provide Bot Services**: Enable onboarding, verification, profile management, and translation features
-- **Language Translation**: Detect languages and provide accurate translations
-- **Role Management**: Assign appropriate roles based on verification and alliance selection
-- **Personalization**: Customize your experience based on language and profile preferences
-- **Server Management**: Help administrators manage their Discord communities
+- **Provide Bot Services**: Enable verification, profile management, alliance assignment, and translation features
+- **Language Translation**: Detect message languages and provide accurate translations to users with different language preferences
+- **Role Management**: Automatically assign Discord roles based on verification status and alliance selection
+- **Personalization**: Customize your Bot experience based on language preferences and profile settings
+- **Server Administration**: Help Discord server administrators manage their communities effectively
 
-### 3.2 Communication
-- **Direct Messages**: Send translation results and onboarding notifications
-- **Server Messages**: Provide translated content and system notifications
-- **Administrative Alerts**: Notify server moderators of relevant events
+### 3.2 Communication and Notifications
+- **Direct Messages**: Send verification instructions, translation results, and important Bot notifications
+- **Server Notifications**: Provide system messages and administrative alerts in designated channels
+- **Status Updates**: Inform users about Bot maintenance, updates, or service changes
 
-### 3.3 Analytics and Improvement
-- **Usage Analytics**: Understand how features are used to improve the Bot
-- **Performance Optimization**: Monitor and improve translation accuracy and speed
-- **Feature Development**: Develop new features based on usage patterns
+### 3.3 Service Improvement and Analytics
+- **Usage Analytics**: Understand feature usage patterns to improve Bot functionality (data is anonymized)
+- **Performance Optimization**: Monitor and improve translation accuracy, speed, and system reliability
+- **Feature Development**: Develop new features and improvements based on aggregated usage data
+- **Security Monitoring**: Detect and prevent abuse, spam, or security threats
+
+### 3.4 Legal and Safety Purposes
+- **Terms Enforcement**: Ensure compliance with our Terms of Service and Discord's Community Guidelines
+- **Legal Compliance**: Respond to valid legal requests and protect our rights and users' safety
+- **Abuse Prevention**: Detect and prevent spam, harassment, or malicious use of the Bot
 
 ## 4. Data Storage and Security
 
-### 4.1 Data Storage
-- **Local Database**: User profiles and preferences are stored in encrypted SQLite databases
-- **Temporary Caching**: Translation results are temporarily cached to improve performance
+### 4.1 Data Storage Methods
+- **Local Database**: User profiles and preferences stored in encrypted SQLite databases on secure servers
+- **Memory Caching**: Temporary translation and session data stored in encrypted memory
+- **Log Files**: Daily log files with automated rotation and retention policies
+- **No Cloud Storage**: Personal data is not stored in third-party cloud services
+
+### 4.2 Security Measures
+- **Data Encryption**: All sensitive data encrypted at rest using industry-standard encryption algorithms
+- **Access Controls**: Administrative access restricted to authorized personnel only with multi-factor authentication
+- **Network Security**: Secure server configurations with firewall protection and regular security updates
+- **Audit Logging**: All administrative actions logged and monitored for security compliance
+
+### 4.3 Data Retention Policies
+- **Profile Data**: Stored indefinitely while you use the Bot; deleted upon account deletion request
+- **Message Content**: Never permanently stored; only processed temporarily for translation
+- **Translation Cache**: Automatically deleted after 24 hours maximum
+- **Usage Logs**: Retained for up to 90 days for debugging and performance monitoring
+- **Error Logs**: Retained for up to 30 days for troubleshooting purposes
+
+## 5. Data Sharing and Third Parties
+
+### 5.1 Translation Services
+- **Google Translate API**: Message content temporarily sent to Google Translate for translation services
+- **Data Processing**: Google processes your content according to their Privacy Policy and Terms of Service
+- **No Storage Guarantee**: We cannot control how Google handles data during processing
+- **Alternative Services**: We may use other translation services; you will be notified of any changes
+
+### 5.2 Discord Platform Integration
+- **Discord API**: We use Discord's API to provide Bot functionality within Discord's platform
+- **Platform Requirements**: Discord may have access to interaction data as part of their platform operation
+- **Discord Policies**: Your Discord usage is governed by Discord's Privacy Policy and Terms of Service
+
+### 5.3 No Data Sales or Marketing
+- **No Commercial Use**: We do not sell, rent, lease, or commercially exploit your personal information
+- **No Marketing**: We do not use your data for marketing, advertising, or promotional purposes
+- **No Third-Party Sharing**: We do not share your data with third parties except as described in this policy
+
+### 5.4 Legal Disclosure
+We may disclose your information if:
+- **Legal Requirement**: Required by law, court order, or government regulation
+- **Safety Protection**: Necessary to protect the rights, property, or safety of users or the public
+- **Terms Enforcement**: Required to enforce our Terms of Service or investigate violations
+- **Consent**: You have given explicit consent for specific disclosure
 - **No Cloud Storage**: Personal data is not stored in third-party cloud services
 - **Retention Period**: Data is retained only as long as necessary for service provision
 
@@ -86,21 +132,124 @@ You have the right to:
 - **Deletion**: Request deletion of your data by contacting server administrators
 - **Portability**: Request a copy of your data in a readable format
 
-### 5.2 Translation Settings
+## 6. Your Rights and Choices
+
+### 6.1 Data Access and Control
+You have the right to:
+- **Access**: Request information about data we have collected about you through Bot commands
+- **Correction**: Update or correct your profile information using `/profile` or `/setlang` commands
+- **Deletion**: Request deletion of your data using Bot commands or by contacting administrators
+- **Portability**: Request a copy of your data in a machine-readable format
+
+### 6.2 Translation and Privacy Controls
 You can control:
-- **Auto-Translation**: Enable or disable automatic translation features
+- **Auto-Translation**: Enable or disable automatic translation using `/setlang` commands
 - **Language Preferences**: Change your preferred language at any time
-- **Translation Mode**: Choose between personal DM translations or server-wide translations
+- **Profile Visibility**: Control what profile information is shared with other users
+- **Direct Message Preferences**: Choose to receive translations via DM (primary method)
 
-### 5.3 Opt-Out Options
-- **Command Blocking**: You can choose not to use specific Bot features
-- **Data Minimization**: Provide only the minimum information required for basic functionality
-- **Server Removal**: You can request Bot removal from servers you administrate
+### 6.3 Opt-Out and Removal Options
+- **Feature Disabling**: Disable specific Bot features while maintaining basic functionality
+- **Data Minimization**: Provide only minimum required information during onboarding
+- **Complete Removal**: Request Bot removal from servers you administrate
+- **Account Deletion**: Request complete deletion of your profile and associated data
 
-## 6. Data Sharing and Disclosure
+## 7. Data Sharing and Disclosure
 
-### 6.1 We Do Not Sell Data
-We do not sell, rent, or commercially distribute your personal information to third parties.
+### 7.1 No Commercial Data Sharing
+- **No Data Sales**: We do not sell, rent, or commercially distribute your personal information
+- **No Marketing Use**: Your data is not used for marketing, advertising, or commercial purposes
+- **No Third-Party Analytics**: We do not share data with third-party analytics or tracking services
+
+### 7.2 Required Disclosures
+We may share information only when:
+- **Legal Obligations**: Required by law, court order, or government request
+- **Safety and Security**: Necessary to protect users' safety or prevent harm
+- **Terms Enforcement**: Required to investigate violations of Terms of Service
+- **User Consent**: You have provided explicit consent for specific sharing
+
+### 7.3 Service Providers
+Limited data sharing with essential service providers:
+- **Google Translate API**: Message content temporarily processed for translation (not stored by Google)
+- **Discord Platform**: Integration data required for Bot functionality within Discord
+- **Hosting Services**: Encrypted data stored on secure servers (no access to unencrypted data)
+
+## 8. International Data Transfers
+
+### 8.1 Data Processing Locations
+- **Primary Storage**: Data primarily stored and processed in secure server locations
+- **Translation Services**: Message content temporarily processed by Google Translate (global service)
+- **Discord Integration**: Data processed through Discord's global infrastructure
+
+### 8.2 Safeguards
+When data crosses borders:
+- **Encryption**: All data encrypted during transfer using industry-standard protocols
+- **Service Provider Compliance**: We ensure service providers meet appropriate privacy standards
+- **Minimal Transfer**: Only necessary data is transferred for specific processing purposes
+
+## 9. Children's Privacy
+
+### 9.1 Age Restrictions
+- **Minimum Age**: Bot services are intended for users 13 years and older (Discord's minimum age)
+- **Parental Consent**: Users under 18 should have parental permission to use Discord and our Bot
+- **No Targeted Collection**: We do not knowingly collect data from children under 13
+
+### 9.2 Child Data Protection
+If we learn we have collected data from a child under 13:
+- **Immediate Deletion**: We will delete the information as quickly as possible
+- **Parent Notification**: Parents may contact us to request information deletion
+- **Enhanced Protection**: Additional safeguards for users identified as minors
+
+## 10. Data Breach Notification
+
+### 10.1 Security Incident Response
+In the event of a data breach:
+- **Immediate Assessment**: Rapid evaluation of the scope and impact
+- **Containment**: Immediate steps to contain and remediate the breach
+- **User Notification**: Affected users notified within 72 hours when feasible
+- **Transparency**: Clear communication about what happened and what we're doing
+
+### 10.2 Prevention Measures
+- **Regular Security Audits**: Ongoing security assessments and improvements
+- **Incident Response Plan**: Established procedures for handling security incidents
+- **Staff Training**: Regular training on data protection and security best practices
+
+## 11. Changes to This Privacy Policy
+
+### 11.1 Policy Updates
+- **Notification**: Users will be notified of significant changes through Bot announcements
+- **Effective Date**: Changes take effect 30 days after notification unless immediate action is required
+- **Continued Use**: Continued use of the Bot after changes constitutes acceptance
+- **Version History**: Previous versions available upon request
+
+### 11.2 Regular Reviews
+- **Annual Review**: This policy is reviewed and updated at least annually
+- **Legal Compliance**: Updates made to maintain compliance with changing privacy laws
+- **Feature Changes**: Policy updated when new features affect data collection or use
+
+## 12. Contact Information
+
+### 12.1 Privacy Questions
+For privacy-related questions or concerns:
+- **GitHub Issues**: [Report Privacy Concerns](https://github.com/honeybadger2121-home/Region40bot_translatorbot/issues)
+- **Documentation**: [View Privacy Documentation](https://github.com/honeybadger2121-home/Region40bot_translatorbot)
+- **Bot Commands**: Use `/help` in Discord for assistance with privacy settings
+
+### 12.2 Data Requests
+To exercise your data rights:
+- **Access Requests**: Use Bot commands to view your stored data
+- **Deletion Requests**: Use Bot commands or contact through GitHub
+- **Correction Requests**: Update information using Bot profile commands
+- **Complex Requests**: Submit detailed requests through GitHub Issues
+
+### 12.3 Response Timeframes
+- **Simple Requests**: Typically processed immediately through Bot commands
+- **Complex Requests**: Responded to within 30 days of receipt
+- **Urgent Matters**: Security and safety issues addressed within 24 hours
+
+---
+
+**By using the Region40Bot, you acknowledge that you have read and understood this Privacy Policy and consent to the collection and use of your information as described herein.**
 
 ### 6.2 Limited Sharing
 We may share information only in these circumstances:

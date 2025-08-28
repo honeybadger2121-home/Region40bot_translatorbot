@@ -1,34 +1,36 @@
 # Terms of Service
 
-**Effective Date:** August 27, 2025  
-**Last Updated:** August 27, 2025
+**Effective Date:** August 28, 2025  
+**Last Updated:** August 28, 2025
 
 ## 1. Acceptance of Terms
 
-By adding the Combined Discord Bot ("the Bot") to your Discord server, using any of its features, or interacting with the Bot in any way, you agree to be bound by these Terms of Service ("Terms"). If you do not agree to these Terms, do not use the Bot.
+By adding the Region40Bot ("the Bot") to your Discord server, using any of its features, or interacting with the Bot in any way, you agree to be bound by these Terms of Service ("Terms"). If you do not agree to these Terms, do not use the Bot.
 
 ## 2. Description of Service
 
-The Combined Discord Bot is designed to facilitate comprehensive Discord server management through:
+The Region40Bot is designed to facilitate comprehensive Discord server management through:
 
-### 2.1 Onboarding Features
-- **CAPTCHA Verification**: Human verification system for new members
+### 2.1 Onboarding & Verification Features
+- **Human Verification**: CAPTCHA-style verification system for new members to prevent spam and bots
 - **Profile Collection**: Gathering of user information including in-game names, timezones, and language preferences
-- **Alliance Assignment**: Role-based alliance selection and management
-- **Automated Role Management**: Automatic assignment of roles based on verification and profile completion
+- **Alliance Assignment**: Role-based alliance selection and management system
+- **Automated Role Management**: Automatic assignment of roles based on verification status and profile completion
+- **Direct Message Verification**: Private verification process conducted entirely through DMs
 
 ### 2.2 Translation Features
-- **Real-Time Translation**: Automatic translation of messages between multiple languages
-- **Personal Translation**: Individual user translation preferences via direct messages
-- **Server-Wide Translation**: Guild-wide translation to common languages
-- **Context Menu Translation**: On-demand translation of specific messages
-- **Voice Translation**: Real-time voice channel translation (when available)
-- **Language Detection**: Automatic detection of message languages
+- **Private Auto-Translation**: Automatic translation of messages sent privately via Direct Messages to users with different language preferences
+- **Real-Time Language Detection**: Automatic detection of message languages using Google Translate API
+- **Personal Translation Preferences**: Individual user language settings and auto-translation controls
+- **Context Menu Translation**: On-demand translation of specific messages through Discord's right-click menu
+- **Comprehensive Language Support**: Support for 25+ languages including English, Spanish, French, German, Japanese, Chinese, and many others
+- **Privacy-Focused**: All automatic translations are sent privately to individual users - no public translation messages in channels
 
 ### 2.3 Administrative Tools
-- **Web Dashboard**: Statistics monitoring and user management interface
-- **Analytics**: Server usage statistics and member engagement metrics
-- **Configuration Management**: Server-specific Bot settings and preferences
+- **Web Dashboard**: Real-time statistics monitoring and user management interface accessible at localhost:3001
+- **Analytics & Reporting**: Server usage statistics, member engagement metrics, and automated hourly reports
+- **Configuration Management**: Server-specific Bot settings, channel assignments, and feature toggles
+- **Comprehensive Logging**: Detailed logging of translation and verification activities with daily log files
 
 ## 3. User Responsibilities
 
@@ -36,32 +38,60 @@ The Combined Discord Bot is designed to facilitate comprehensive Discord server 
 You agree to use the Bot only for lawful purposes and in accordance with these Terms. You agree NOT to:
 
 #### 3.1.1 Prohibited Content
-- Use the Bot to translate, process, or distribute illegal, harmful, or inappropriate content
+- Use the Bot to translate, process, or distribute illegal, harmful, threatening, abusive, or inappropriate content
 - Submit content that violates Discord's Community Guidelines or Terms of Service
-- Use the Bot for harassment, spam, or abuse of other users
-- Attempt to circumvent verification systems or security measures
+- Use the Bot for harassment, spam, doxxing, or abuse of other users
+- Attempt to circumvent verification systems, security measures, or anti-spam protections
+- Submit false, misleading, or fraudulent information during verification or profile setup
 
 #### 3.1.2 Technical Restrictions
-- Attempt to reverse engineer, decompile, or modify the Bot's functionality
-- Use automated tools or scripts to overwhelm the Bot's systems
-- Attempt to gain unauthorized access to the Bot's databases or systems
-- Interfere with the Bot's operation or other users' experience
+- Attempt to reverse engineer, decompile, disassemble, or modify the Bot's functionality
+- Use automated tools, scripts, or bots to overwhelm the Bot's systems or abuse rate limits
+- Attempt to gain unauthorized access to the Bot's databases, systems, or administrative features
+- Interfere with the Bot's operation, other users' experience, or server performance
+- Exploit bugs, vulnerabilities, or unintended features for malicious purposes
 
-#### 3.1.3 Content Responsibility
-- Ensure all content you submit for translation complies with applicable laws
+#### 3.1.3 Content and Privacy Responsibility
+- Ensure all content you submit for translation complies with applicable laws and regulations
 - Respect intellectual property rights when using translation features
 - Take responsibility for the accuracy and appropriateness of your profile information
+- Understand that translations are processed through third-party services (Google Translate)
+- Do not share sensitive, confidential, or personal information through the Bot
 
 ### 3.2 Server Administrator Responsibilities
-If you are a server administrator:
-- **Proper Configuration**: Ensure the Bot is properly configured for your server's needs
-- **User Education**: Inform your server members about the Bot's features and these Terms
-- **Compliance Monitoring**: Monitor Bot usage in your server for compliance with these Terms
-- **Data Protection**: Protect any administrative access credentials and Bot configuration data
+If you are a server administrator using this Bot:
+- **Proper Configuration**: Ensure the Bot is properly configured for your server's needs and community guidelines
+- **User Education**: Inform your server members about the Bot's features, these Terms, and privacy implications
+- **Compliance Monitoring**: Monitor Bot usage in your server for compliance with these Terms and Discord's policies
+- **Data Protection**: Protect any administrative access credentials, configuration data, and user information
+- **Legal Compliance**: Ensure Bot usage complies with applicable local, national, and international laws
 
 ### 3.3 Verification and Profile Accuracy
-- **Truthful Information**: Provide accurate information during the verification and profile completion process
-- **Updates**: Keep your profile information current and accurate
+- **Truthful Information**: Provide accurate, current, and complete information during verification and profile setup
+- **Profile Maintenance**: Keep your profile information current and notify administrators of any changes
+- **Verification Integrity**: Complete verification process honestly and do not attempt to create multiple accounts
+- **Alliance Participation**: If joining an alliance, participate in good faith and follow alliance-specific rules
+
+## 4. Privacy and Data Handling
+
+### 4.1 Information Collection
+The Bot collects and processes:
+- **Discord Account Information**: User ID, username, server membership, and interaction data
+- **Profile Information**: In-game names, timezone preferences, language settings, and alliance selections
+- **Message Content**: Temporarily processed for translation purposes only (not permanently stored)
+- **Usage Statistics**: Anonymized data about command usage and Bot interactions
+
+### 4.2 Data Use and Sharing
+- **Translation Processing**: Message content is sent to Google Translate API for translation services
+- **No Data Sale**: We do not sell, rent, or lease your personal information to third parties
+- **Service Improvement**: Anonymized usage data may be used to improve Bot functionality
+- **Legal Compliance**: Information may be disclosed if required by law or to protect our rights
+
+### 4.3 Data Security
+- **Encryption**: Sensitive data is stored in encrypted databases
+- **Access Controls**: Administrative access is restricted and monitored
+- **Retention Limits**: Message content is not permanently stored; only processed for immediate translation
+- **User Control**: Users can request data deletion or modification through Bot commands
 - **Verification Compliance**: Complete verification processes honestly and without circumvention attempts
 
 ## 4. Privacy and Data Protection
@@ -247,8 +277,6 @@ Some Bot features may be marked as "beta" or "experimental":
 ---
 
 **Effective Date:** August 27, 2025  
-**Last Updated:** August 27, 2025
+---
 
-By using the Combined Discord Bot, you acknowledge that you have read, understood, and agree to be bound by these Terms of Service and our Privacy Policy.
-
-For questions about these Terms, please contact us through our GitHub repository or the support channels listed above.
+**By using the Region40Bot, you acknowledge that you have read, understood, and agree to be bound by these Terms of Service.**

@@ -1,6 +1,6 @@
-# Combined Discord Bot
+# Region40Bot - Discord Translation & Onboarding Bot
 
-A comprehensive Discord bot that combines advanced onboarding features with real-time translation capabilities, creating a complete member management and multilingual communication solution.
+A comprehensive Discord bot that combines advanced member onboarding with privacy-focused real-time translation capabilities, creating a complete multilingual community management solution.
 
 ## 🌟 Features
 
@@ -12,123 +12,131 @@ A comprehensive Discord bot that combines advanced onboarding features with real
 - **Welcome Messages**: Customizable welcome messages for new members
 
 ### 🌐 Translation System
-- **Auto-Translation**: Automatically translate messages based on user language preferences
-- **Personal Translation**: Individual users receive translations via DM
-- **Server-wide Translation**: Guild-wide translation to a common language
-- **Context Menu Translation**: Right-click any message to translate it
-- **Voice Translation**: Real-time voice channel translation (coming soon)
-- **Language Detection**: Automatic language detection for all messages
-- **Smart Caching**: Efficient translation caching to reduce API calls
+- **Private Auto-Translation**: Automatic message translation sent privately via Direct Messages - no public translation messages
+- **25+ Language Support**: Comprehensive support including English, Spanish, French, German, Japanese, Chinese, Korean, Arabic, and many more
+- **Smart Language Detection**: Automatic language detection with Google Translate API integration
+- **Context Menu Translation**: Right-click any message for instant on-demand translation
+- **Individual Language Preferences**: Each user sets their own language preference for personalized translations
+- **Zero Channel Spam**: All translations are completely private - other users never see translation activity
+- **Translation Caching**: Intelligent caching system to reduce API calls and improve performance
 
-### 📊 Dashboard & Analytics
-- **Real-time Dashboard**: Web dashboard with live statistics
-- **User Management**: View user profiles, verification status, and language preferences
-- **Alliance Analytics**: Visual charts showing alliance distribution
-- **Language Analytics**: Statistics on language usage and preferences
-- **Live Updates**: WebSocket-powered real-time updates
+### 📊 Comprehensive Analytics & Management
+- **Real-Time Web Dashboard**: Live statistics dashboard accessible at localhost:3001
+- **User Management Interface**: View and manage user profiles, verification status, and language preferences
+- **Alliance Analytics**: Visual charts showing alliance distribution and member engagement
+- **Language Usage Statistics**: Track popular languages and translation frequency patterns
+- **Live Updates**: WebSocket-powered real-time dashboard updates every 30 seconds
+- **Detailed Logging**: Daily log files for translation and verification activities with automatic rotation
 
-### 🛡️ Admin Features
-- **Server Configuration**: Set up verification, welcome, and mod channels
-- **Statistics Commands**: View detailed server statistics
-- **Bulk User Management**: Admin commands for user management
-- **Automated Reporting**: Scheduled statistics reports
+### 🛡️ Administrative Tools
+- **Server Configuration**: Flexible setup for verification channels, welcome messages, and role management
+- **Statistics Commands**: Detailed server statistics and usage analytics accessible via Discord commands
+- **Bulk User Management**: Administrative commands for managing multiple users efficiently
+- **Automated Reporting**: Scheduled hourly statistics reports and system health monitoring
+- **Security Features**: Rate limiting, abuse prevention, and comprehensive audit logging
 
-## 🚀 Quick Start
+## 🚀 Quick Start Guide
 
-### 1. Prerequisites
+### Prerequisites
 - Node.js 16.9.0 or higher
-- Discord Application with bot token
-- Optional: Redis for enhanced caching
+- Discord Application with Bot Token
+- Discord Server with appropriate permissions
 
-### 2. Installation
+### Installation
 
 ```bash
 # Clone the repository
-git clone <repository-url>
+git clone https://github.com/honeybadger2121-home/Region40bot_translatorbot.git
 cd Region40bot_translatorbot
 
 # Install dependencies
 npm install
 
-# Copy environment template
+# Configure environment
 cp .env.example .env
+# Edit .env with your bot token and preferences
 ```
 
-### 3. Configuration
+### Configuration
 
-Edit the `.env` file with your bot token:
+Edit the `.env` file with your settings:
 
 ```env
+# Required - Discord Bot Token
 BOT_TOKEN=your_discord_bot_token_here
-DISCORD_TOKEN=your_discord_bot_token_here  # Alternative for compatibility
 
-# Optional Redis configuration
-REDIS_URL=redis://localhost:6379
-
-# Dashboard configuration
-DASH_PORT=3000
+# Dashboard Configuration
+DASH_PORT=3001
 ADMIN_USER=admin
 ADMIN_PASS=supersecret
+
+# Security Settings
 DASH_ALLOW_IPS=127.0.0.1,::1
+
+# Optional - Redis for enhanced performance
+REDIS_URL=redis://localhost:6379
 ```
 
-### 4. Discord Bot Setup
+### Discord Bot Setup
 
-1. Go to [Discord Developer Portal](https://discord.com/developers/applications)
-2. Create a new application and bot
-3. Enable the following **Privileged Gateway Intents**:
-   - ✅ Server Members Intent
-   - ✅ Message Content Intent
-   - ✅ Presence Intent (optional)
+1. **Create Discord Application**:
+   - Go to [Discord Developer Portal](https://discord.com/developers/applications)
+   - Create a new application and bot
+   - Copy the bot token to your `.env` file
 
-4. Invite the bot with this URL:
-```
-https://discord.com/oauth2/authorize?client_id=1410037675368648704&permissions=8589935616&scope=bot%20applications.commands
-```
-**Or use this clickable link:** [Add Bot to Server](https://discord.com/oauth2/authorize?client_id=1410037675368648704&permissions=8589935616&scope=bot%20applications.commands)
+2. **Enable Required Intents**:
+   - ✅ **Server Members Intent** (Required for member onboarding)
+   - ✅ **Message Content Intent** (Required for translation processing)
+   - ⚠️ **Presence Intent** (Optional - for smart message timing)
 
-### 5. Running the Bot
+3. **Invite Bot to Server**:
+   ```
+   https://discord.com/oauth2/authorize?client_id=1410037675368648704&permissions=8589935616&scope=bot%20applications.commands
+   ```
+   **[Click here to add Region40Bot to your server](https://discord.com/oauth2/authorize?client_id=1410037675368648704&permissions=8589935616&scope=bot%20applications.commands)**
+
+### Running the Bot
 
 ```bash
-# Start just the bot
+# Start bot only
 npm start
 
-# Start with warning traces (development)
-npm run dev
-
-# Start with full deprecation traces (debugging)
-npm run trace
-
-# Start just the dashboard
-npm run dashboard
-
-# Start both bot and dashboard
+# Start bot with dashboard
 npm run both
 
-# Start both with deprecation traces
-npm run both-trace
+# Development mode with detailed logging
+npm run dev
+
+# Production mode with full traces
+npm run trace
 ```
 
-## 📋 Commands
+### Access Dashboard
+- **URL**: http://localhost:3001
+- **Credentials**: Use values from your `.env` file
+- **Features**: Real-time stats, user management, analytics
 
-### 🔐 Onboarding Commands
-- `/verify` - Start the verification process with CAPTCHA
-- `/profile` - Complete your profile information (name, timezone, language)
-- `/alliance` - Select your alliance from available options
+## 🎯 Usage Examples
 
-### 🌐 Translation Commands
-- `/setlang <language>` - Set your preferred language for auto-translation
-- `/getlang` - View your current language settings
-- `/autotranslate enable/disable/status` - Configure server-wide translation (Admin only)
-- `/startvoice` - Start voice translation (coming soon)
-- `/stopvoice` - Stop voice translation (coming soon)
+### Member Onboarding
+1. **New User Joins**: Bot automatically starts DM verification
+2. **Verification Process**: User completes CAPTCHA and profile setup
+3. **Profile Information**: In-game name, timezone, language preference
+4. **Alliance Selection**: Choose from available server alliances
+5. **Role Assignment**: Automatic Discord role assignment based on choices
 
-### 🛠️ Admin Commands
-- `/stats` - View detailed server statistics
-- `/setup` - Configure bot settings (channels, etc.)
+### Translation Workflow
+1. **Language Setup**: Users set preference with `/setlang <language>`
+2. **Auto-Translation**: Messages automatically translated and sent via DM
+3. **Context Translation**: Right-click any message → "Translate Message"
+4. **Privacy**: Only intended recipients see translations
+5. **Performance**: Cached translations for improved speed
 
-### 🖱️ Context Menus
-- **Right-click any message** → "Translate Message" - Instantly translate any message
+### Administrative Management
+1. **Dashboard Monitoring**: Real-time user and translation statistics
+2. **Server Configuration**: Set up channels and preferences
+3. **User Management**: View profiles and verification status
+4. **Analytics**: Track alliance distribution and language usage
 
 ## 🗃️ Database Schema
 

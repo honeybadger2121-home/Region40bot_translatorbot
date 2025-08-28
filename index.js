@@ -385,7 +385,7 @@ client.on('messageCreate', async (message) => {
   if (message.author.bot || !message.guild || !message.content.trim()) return;
   
   try {
-    // Check for personal auto-translation
+    // Check for personal auto-translation (post in channel, not DM)
     const userProfile = await dbHelpers.getUserProfile(message.author.id);
     if (userProfile && userProfile.autoTranslate && userProfile.language) {
       const detectedLang = await detectLanguage(message.content);
@@ -393,26 +393,22 @@ client.on('messageCreate', async (message) => {
       if (detectedLang !== userProfile.language) {
         const translated = await translate(message.content, userProfile.language);
         
-        const dmEmbed = new EmbedBuilder()
-          .setTitle('🌐 Auto-Translation')
-          .setDescription(`From **${message.guild.name}** - #${message.channel.name}`)
-          .addFields([
-            { name: `Original (${detectedLang})`, value: message.content },
-            { name: `Translation (${userProfile.language})`, value: translated }
-          ])
+        const translationEmbed = new EmbedBuilder()
+          .setAuthor({ 
+            name: `${message.author.username} (${detectedLang} → ${userProfile.language})`,
+            iconURL: message.author.displayAvatarURL()
+          })
+          .setDescription(translated)
           .setColor(0x00AE86)
           .setTimestamp()
-          .setFooter({ text: `By: ${message.author.username}` });
+          .setFooter({ text: `Personal translation for ${message.author.username}` });
         
-        try {
-          await message.author.send({ embeds: [dmEmbed] });
-        } catch (dmError) {
-          console.log('Could not send DM to user:', message.author.username);
-        }
+        await message.channel.send({ embeds: [translationEmbed] });
+        return; // Don't also do guild-wide translation
       }
     }
     
-    // Check for guild-wide auto-translation
+    // Check for guild-wide auto-translation (only if no personal translation was done)
     const guildSettings = await dbHelpers.getGuildSettings(message.guild.id);
     if (guildSettings.autoTranslateEnabled) {
       const detectedLang = await detectLanguage(message.content);
@@ -427,7 +423,8 @@ client.on('messageCreate', async (message) => {
           })
           .setDescription(translated)
           .setColor(0x00AE86)
-          .setTimestamp();
+          .setTimestamp()
+          .setFooter({ text: `Server-wide translation` });
         
         await message.channel.send({ embeds: [translationEmbed] });
       }
@@ -659,7 +656,7 @@ async function handleSetLangCommand(interaction) {
       .setTitle('🌐 Language Set Successfully!')
       .setDescription(`Your preferred language has been set to **${langInput}** (${lang})`)
       .addFields([
-        { name: '✅ Auto-Translation Enabled', value: 'You will receive automatic translations via DM' },
+        { name: '✅ Auto-Translation Enabled', value: 'You will receive automatic translations in the same channel' },
         { name: '🔄 Change Language', value: 'Use `/setlang <language>` to change' },
         { name: '🚫 Disable', value: 'Use `/setlang off` to turn off auto-translation' }
       ])
@@ -681,7 +678,7 @@ async function handleGetLangCommand(interaction) {
         .setTitle('🌐 Your Language Settings')
         .addFields([
           { name: 'Preferred Language:', value: `**${userProfile.language}** (Auto-translation enabled)` },
-          { name: 'Status:', value: '✅ You will receive automatic translations via DM' },
+          { name: 'Status:', value: '✅ You will receive automatic translations in the same channel' },
           { name: 'Change Language:', value: 'Use `/setlang <language>` to change' },
           { name: 'Disable:', value: 'Use `/setlang off` to turn off auto-translation' }
         ])
@@ -1093,7 +1090,7 @@ async function handleModal(interaction) {
           { name: '🎮 In-Game Name', value: inGameName },
           { name: '🌍 Timezone', value: timezone },
           { name: '🌐 Language', value: `${languageInput} (${language})` },
-          { name: '✅ Auto-Translation', value: 'Enabled - you\'ll receive translations via DM' }
+          { name: '✅ Auto-Translation', value: 'Enabled - you\'ll receive translations in the same channel' }
         ])
         .setColor(0x00FF00);
       

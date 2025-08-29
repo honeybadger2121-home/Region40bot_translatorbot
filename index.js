@@ -310,6 +310,10 @@ const commands = [
     description: 'Start the verification process'
   },
   {
+    name: 'オンボーディング',
+    description: '認証プロセスを開始する (Start verification process in Japanese)'
+  },
+  {
     name: 'profile',
     description: 'Complete your profile information'
   },
@@ -738,13 +742,13 @@ client.on('guildMemberAdd', async (member) => {
     // Send welcome DM (only one per member)
     try {
       const dmEmbed = new EmbedBuilder()
-        .setTitle('🎉 Welcome to the server!')
-        .setDescription(`Hello ${member.user.username}! Welcome to **${member.guild.name}**!\n\nTo get started, simply reply with: **verify**`)
+        .setTitle('🎉 Welcome to the server! | サーバーへようこそ！')
+        .setDescription(`Hello ${member.user.username}! Welcome to **${member.guild.name}**!\n\nTo get started, simply reply with: **verify**\n\n*こんにちは ${member.user.username}さん！**${member.guild.name}**へようこそ！*\n\n*開始するには、次のように返信してください：**verify** または **認証***`)
         .addFields([
-          { name: '🔐 Step 1', value: 'Reply with "verify" to this message' },
-          { name: '👤 Step 2', value: 'Complete your profile setup' },
-          { name: '🛡️ Step 3', value: 'Choose your alliance' },
-          { name: '🌐 Optional', value: 'Set up auto-translation' }
+          { name: '🔐 Step 1 | ステップ1', value: 'Reply with "verify" to this message\n*このメッセージに「verify」または「認証」で返信*' },
+          { name: '👤 Step 2 | ステップ2', value: 'Complete your profile setup\n*プロフィール設定を完了*' },
+          { name: '🛡️ Step 3 | ステップ3', value: 'Choose your alliance\n*アライアンスを選択*' },
+          { name: '🌐 Optional | オプション', value: 'Set up auto-translation\n*自動翻訳を設定*' }
         ])
         .setColor(0x00AE86)
         .setThumbnail(member.guild.iconURL());
@@ -768,8 +772,9 @@ client.on('messageCreate', async (message) => {
     try {
       const userProfile = await dbHelpers.getUserProfile(message.author.id);
       
-      // Handle "verify" command for verification and onboarding start
-      if (message.content.trim().toLowerCase() === 'verify') {
+      // Handle "verify" command for verification and onboarding start (English and Japanese)
+      const messageContent = message.content.trim().toLowerCase();
+      if (messageContent === 'verify' || messageContent === '認証' || messageContent === 'にんしょう') {
         if (!userProfile) {
           // Create new profile and start verification
           logVerification(`Creating new profile for ${message.author.username}`);
@@ -987,6 +992,9 @@ async function handleSlashCommand(interaction) {
       case 'verify':
         await handleVerifyCommand(interaction);
         break;
+      case 'オンボーディング':
+        await handleJapaneseOnboardingCommand(interaction);
+        break;
       case 'profile':
         await handleProfileCommand(interaction);
         break;
@@ -1069,6 +1077,30 @@ async function handleVerifyCommand(interaction) {
     ])
     .setColor(0x00FF00)
     .setFooter({ text: 'Simple verification: Just DM me "verify" to get started!' });
+  
+  await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
+}
+
+async function handleJapaneseOnboardingCommand(interaction) {
+  const embed = new EmbedBuilder()
+    .setTitle('📨 認証手順 (Verification Instructions)')
+    .setDescription('認証とオンボーディングプロセスを開始するには：\n\n**1.** 私の名前（Region40Bot）をクリックしてください\n**2.** ダイレクトメッセージを送信してください\n**3.** 「verify」と入力してください\n**4.** オンボーディングの手順に従ってください\n\n*To verify and start your onboarding process:\n1. Click on my name (Region40Bot)\n2. Send me a direct message\n3. Type: "verify"\n4. Follow the onboarding steps*')
+    .addFields([
+      { 
+        name: '💬 やること (What to do)', 
+        value: '「verify」という単語でDMを送信してください\n*Send me a DM with the word "verify"*' 
+      },
+      { 
+        name: '🤖 私を見つける場所 (Where to find me)', 
+        value: 'メンバーリストまたはこのメッセージの「Region40Bot」をクリック\n*Click on "Region40Bot" in the member list or this message*' 
+      },
+      { 
+        name: '⏰ 次に何が起こるか (What happens next)', 
+        value: 'プロフィール設定とアライアンス選択をガイドします\n*I\'ll guide you through profile setup and alliance selection*' 
+      }
+    ])
+    .setColor(0x00FF00)
+    .setFooter({ text: '簡単な認証：「verify」とDMするだけで始められます！ | Simple verification: Just DM me "verify" to get started!' });
   
   await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
 }
@@ -2387,7 +2419,7 @@ async function handleHelpCommand(interaction) {
     .addFields([
       { 
         name: '🔐 Onboarding Commands', 
-        value: '`/verify` - Start verification process\n`/profile` - Complete your profile\n`/alliance` - Choose your alliance', 
+        value: '`/verify` - Start verification process\n`/オンボーディング` - 日本語で認証開始\n`/profile` - Complete your profile\n`/alliance` - Choose your alliance', 
         inline: true 
       },
       { 

@@ -27,10 +27,13 @@ During onboarding, verification, and Bot usage, you may voluntarily provide:
 - **Profile Information**: Any additional information you choose to share during profile setup
 
 ### 2.3 Message Content (Temporary Processing Only)
-- **Translation Processing**: Message content is temporarily processed by Google Translate API for translation services
+- **Flag-Based Translation Processing**: Message content is temporarily processed when users request translation via flag emojis
+- **Reaction-Based Translation**: Messages are processed when users react with country flag emojis
+- **Reply-Based Translation**: Messages are processed when users reply with country flag emojis
+- **Google Translate API**: Content sent to Google Translate API for translation services
 - **No Permanent Storage**: Original message content is NOT permanently stored in our databases
+- **Auto-Deletion**: Translation messages automatically delete after 45 seconds
 - **Cache Duration**: Translation results may be cached for up to 24 hours to improve performance and reduce API costs
-- **Automatic Deletion**: All message content and translations are automatically deleted from our systems
 
 ### 2.4 Technical and Usage Information
 - **Command Usage Statistics**: Frequency and types of commands used (anonymized)
@@ -42,8 +45,10 @@ During onboarding, verification, and Bot usage, you may voluntarily provide:
 
 ### 3.1 Primary Service Functions
 We use your information to:
-- **Provide Bot Services**: Enable verification, profile management, alliance assignment, and translation features
-- **Language Translation**: Detect message languages and provide accurate translations to users with different language preferences
+- **Provide Bot Services**: Enable verification, profile management, alliance assignment, and flag-based translation features
+- **Flag Translation Services**: Process translation requests made via country flag emojis (both replies and reactions)
+- **Auto-Deletion Management**: Automatically delete translation messages after 45 seconds to keep channels clean
+- **Language Detection**: Detect message languages and provide accurate translations for 150+ supported country flags
 - **Role Management**: Automatically assign Discord roles based on verification status and alliance selection
 - **Personalization**: Customize your Bot experience based on language preferences and profile settings
 - **Server Administration**: Help Discord server administrators manage their communities effectively

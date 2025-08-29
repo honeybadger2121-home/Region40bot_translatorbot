@@ -547,15 +547,15 @@ const flagToLanguage = {
   '🇦🇬': 'en', // Antigua and Barbuda
   '🇩🇲': 'en', // Dominica
   '🇰🇳': 'en', // Saint Kitts and Nevis
-  '🇬🇾': 'en', // Guyana
-  '🇧🇿': 'en', // Belize
+  '🇬�': 'en', // Guyana
+  '�🇧🇿': 'en', // Belize
   '🇲🇹': 'en', // Malta
   '🇸🇬': 'en', // Singapore
   '🇭🇰': 'en', // Hong Kong
   '🇵🇭': 'en', // Philippines (English is official)
   '🇮🇳': 'en', // India (English is official)
-  '🇳🇬': 'en', // Nigeria
-  '🇰🇪': 'en', // Kenya
+  '�🇬': 'en', // Nigeria
+  '🇰�🇪': 'en', // Kenya
   '🇺🇬': 'en', // Uganda
   '🇬🇭': 'en', // Ghana
   '🇹🇿': 'en', // Tanzania
@@ -584,8 +584,8 @@ const flagToLanguage = {
 
   // Spanish-speaking countries
   '🇪🇸': 'es', // Spain
-  '🇪🇦': 'es', // Spain (regional flag)
-  '🇲🇽': 'es', // Mexico
+  '�🇦': 'es', // Spain (regional flag)
+  '�🇲🇽': 'es', // Mexico
   '🇦🇷': 'es', // Argentina
   '🇨🇱': 'es', // Chile
   '🇨🇴': 'es', // Colombia
@@ -607,7 +607,7 @@ const flagToLanguage = {
   '�🇶': 'es', // Equatorial Guinea
 
   // French-speaking countries
-  '🇫🇷': 'fr', // France
+  '�🇫🇷': 'fr', // France
   '🇧🇪': 'fr', // Belgium
   '🇨🇭': 'fr', // Switzerland
   '🇱🇺': 'fr', // Luxembourg
@@ -724,7 +724,7 @@ const flagToLanguage = {
   '🇱🇹': 'lt', // Lithuanian
   '🇱�': 'lv', // Latvian
   '🇪🇪': 'et', // Estonian
-  '🇬🇷': 'el', // Greek
+  '�🇬🇷': 'el', // Greek
   '🇨🇾': 'el', // Cyprus (Greek)
   '🇮🇱': 'he', // Hebrew
   '��': 'hy', // Armenian
@@ -779,16 +779,16 @@ const flagToLanguage = {
   '🇵🇷': 'en', // Puerto Rico (bilingual)
 
   // Caribbean with various languages
-  '🇦🇼': 'nl', // Aruba (Dutch)
+  '��': 'nl', // Aruba (Dutch)
   '🇨🇼': 'nl', // Curaçao (Dutch)
-  '🇸🇽': 'nl', // Sint Maarten (Dutch)
+  '🇸�': 'nl', // Sint Maarten (Dutch)
   '🇲🇫': 'fr', // Saint Martin (French)
   '🇬🇵': 'fr', // Guadeloupe (French)
-  '🇲🇶': 'fr', // Martinique (French)
+  '��': 'fr', // Martinique (French)
   '🇬🇫': 'fr', // French Guiana (French)
 
   // Additional African languages
-  '🇿🇦': 'af', // Afrikaans (South Africa)
+  '��': 'af', // Afrikaans (South Africa)
   '🇿🇦': 'zu', // Zulu
   '��': 'xh', // Xhosa
   '🇳🇬': 'ha', // Hausa (Nigeria)
@@ -867,11 +867,11 @@ const languageToFlag = {
   'bn': '🇧🇩', // Bengali
   'ur': '🇵🇰', // Urdu
   'fa': '🇮🇷', // Persian
-  'ps': '🇦🇫', // Pashto
+  'ps': '🇦�', // Pashto
   'am': '🇪🇹', // Amharic
   'sw': '🇰🇪', // Swahili
   'zu': '🇿🇦', // Zulu
-  'af': '🇿🇦', // Afrikaans
+  'af': '🇿�🇦', // Afrikaans
   'xh': '🇿🇦', // Xhosa
   'ha': '🇳🇬', // Hausa
   'yo': '🇳🇬', // Yoruba
@@ -911,7 +911,7 @@ async function sendFlagTranslation(message, targetUser, flag, originalText, tran
       ])
       .setColor(0x4A90E2)
       .setFooter({ 
-        text: `Translation • This message will auto-delete in 45 seconds ⏰`, 
+        text: `Translation • This message will auto-delete in 45 seconds`, 
         iconURL: message.author.displayAvatarURL({ dynamic: true }) 
       })
       .setTimestamp();
@@ -923,50 +923,12 @@ async function sendFlagTranslation(message, targetUser, flag, originalText, tran
       allowedMentions: { users: [targetUser.id] }
     });
 
-    // Auto-delete after 45 seconds with countdown updates
-    let timeLeft = 45;
-    
-    // Update countdown every 10 seconds for the last 30 seconds
-    const countdownInterval = setInterval(async () => {
-      timeLeft -= 10;
-      if (timeLeft <= 30 && timeLeft > 0) {
-        try {
-          const updatedEmbed = EmbedBuilder.from(embed)
-            .setFooter({ 
-              text: `Translation • Auto-deleting in ${timeLeft} seconds ⏰`, 
-              iconURL: message.author.displayAvatarURL({ dynamic: true }) 
-            });
-          
-          await replyMessage.edit({ embeds: [updatedEmbed] });
-          console.log(`[TRANSLATION] Updated countdown: ${timeLeft} seconds remaining`);
-        } catch (error) {
-          console.error(`[TRANSLATION] Failed to update countdown:`, error.message);
-          clearInterval(countdownInterval);
-        }
-      }
-    }, 10000);
-
     // Auto-delete after 45 seconds
     setTimeout(async () => {
-      clearInterval(countdownInterval);
       try {
-        console.log(`[TRANSLATION] Attempting to auto-delete translation message after 45 seconds`);
         await replyMessage.delete();
-        console.log(`[TRANSLATION] Successfully auto-deleted translation message`);
       } catch (error) {
-        console.error(`[TRANSLATION] Failed to auto-delete translation message:`, error.message);
-        // Try to edit message to indicate deletion failed
-        try {
-          const failedEmbed = EmbedBuilder.from(embed)
-            .setFooter({ 
-              text: `Translation • Failed to auto-delete (please delete manually) ❌`, 
-              iconURL: message.author.displayAvatarURL({ dynamic: true }) 
-            })
-            .setColor(0xFF6B6B);
-          await replyMessage.edit({ embeds: [failedEmbed] });
-        } catch (editError) {
-          console.error(`[TRANSLATION] Failed to update message after deletion failure:`, editError.message);
-        }
+        // Message might already be deleted
       }
     }, 45000);
 
@@ -4084,19 +4046,3 @@ async function handleContextMenu(interaction) {
 
 // Login to Discord
 client.login(process.env.BOT_TOKEN || process.env.DISCORD_TOKEN);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

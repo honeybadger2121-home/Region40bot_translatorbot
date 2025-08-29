@@ -129,9 +129,10 @@ The bot automatically creates and manages:
 ```
 
 ### 3. Test Translation Features
-- Right-click any message → "Translate Message" (context menu)
-- Set different language preferences and test auto-translation
-- Verify translations are sent privately via Direct Messages
+- **Flag Translation**: Reply to any message with a country flag emoji (🇪🇸 for Spanish, 🇫🇷 for French, 🇩🇪 for German, etc.)
+- **Reaction Translation**: React to any message with a flag emoji for instant translation
+- **Context Menu**: Right-click any message → "Translate Message"
+- **Auto-Deletion**: Watch translations auto-delete after 45 seconds with countdown
 
 ### 4. Access Web Dashboard
 - Navigate to http://localhost:3001
@@ -148,15 +149,13 @@ The bot automatically creates and manages:
 - **Direct Message Flow**: Private verification process via DMs
 
 ### 🌐 Translation System
-- **Private Auto-Translation**: Translations sent privately via Direct Messages
-- **25+ Language Support**: Comprehensive language support including:
-  - `en` (English), `es` (Spanish), `fr` (French), `de` (German)
-  - `it` (Italian), `pt` (Portuguese), `ru` (Russian), `ja` (Japanese)
-  - `zh` (Chinese), `ko` (Korean), `ar` (Arabic), `nl` (Dutch)
-  - `pl` (Polish), `sv` (Swedish), `no` (Norwegian), and many more
+- **Flag-Based Translation**: Reply to or react with country flag emojis for instant translation
+- **150+ Flag Support**: Comprehensive support for country flags including regional variants (🇺🇸🇬🇧🇨🇦 English, 🇪🇸🇲🇽🇦🇷 Spanish, 🇫🇷🇧🇪 French, 🇩🇪🇦🇹 German, 🇬🇷🇨🇾 Greek, and many more)
+- **Dual Input Methods**: Both reply-based and reaction-based translation requests
+- **Auto-Deletion**: Translation messages automatically disappear after 45 seconds
 - **Context Menu Translation**: Right-click any message for instant translation
 - **Smart Language Detection**: Automatic language detection using Google Translate
-- **Privacy-Focused**: No public translation messages in channels
+- **Clean Channels**: No permanent clutter - translations auto-delete with countdown timer
 
 ### � Analytics & Management
 - **Real-Time Dashboard**: Live statistics and user management

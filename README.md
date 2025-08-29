@@ -12,12 +12,16 @@ A comprehensive Discord bot that combines advanced member onboarding with privac
 - **Welcome Messages**: Customizable welcome messages for new members
 
 ### 🌐 Translation System
-- **Private Auto-Translation**: Automatic message translation sent privately via Direct Messages - no public translation messages
+- **Flag-Based Translation**: Users can reply to or react with country flag emojis for instant translation
+- **150+ Flag Support**: Comprehensive support for country flags including regional variants
+- **Dual Input Methods**: Both reply-based and reaction-based translation requests
+- **Auto-Deletion**: Translation messages automatically disappear after 45 seconds to keep channels clean
+- **Private Translations**: Translations are sent as replies mentioning only the requesting user
 - **25+ Language Support**: Comprehensive support including English, Spanish, French, German, Japanese, Chinese, Korean, Arabic, and many more
 - **Smart Language Detection**: Automatic language detection with Google Translate API integration
 - **Context Menu Translation**: Right-click any message for instant on-demand translation
 - **Individual Language Preferences**: Each user sets their own language preference for personalized translations
-- **Zero Channel Spam**: All translations are completely private - other users never see translation activity
+- **Visual Countdown**: Translation messages show countdown timer before auto-deletion
 - **Translation Caching**: Intelligent caching system to reduce API calls and improve performance
 
 ### 📊 Comprehensive Analytics & Management
@@ -126,11 +130,11 @@ npm run trace
 5. **Role Assignment**: Automatic Discord role assignment based on choices
 
 ### Translation Workflow
-1. **Language Setup**: Users set preference with `/setlang <language>`
-2. **Auto-Translation**: Messages automatically translated and sent via DM
-3. **Context Translation**: Right-click any message → "Translate Message"
-4. **Privacy**: Only intended recipients see translations
-5. **Performance**: Cached translations for improved speed
+1. **Flag Translation**: Reply to any message with a country flag emoji (🇺🇸 🇪🇸 🇫🇷 🇩🇪 etc.) OR react to any message with a flag emoji
+2. **Instant Translation**: Bot translates the message to the language corresponding to the flag
+3. **Auto-Deletion**: Translation appears as a reply mentioning you, then auto-deletes after 45 seconds
+4. **150+ Flags Supported**: Works with country flags from around the world, including regional variants
+5. **Clean Channels**: No permanent clutter - translations disappear automatically
 
 ### Administrative Management
 1. **Dashboard Monitoring**: Real-time user and translation statistics

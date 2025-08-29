@@ -19,12 +19,13 @@ The Region40Bot is designed to facilitate comprehensive Discord server managemen
 - **Direct Message Verification**: Private verification process conducted entirely through DMs
 
 ### 2.2 Translation Features
-- **Private Auto-Translation**: Automatic translation of messages sent privately via Direct Messages to users with different language preferences
+- **Flag-Based Translation**: Users can reply to or react with country flag emojis for instant translation (150+ flags supported)
+- **Dual Input Methods**: Both reply-based and reaction-based translation requests
+- **Auto-Deletion**: Translation messages automatically disappear after 45 seconds to keep channels clean
 - **Real-Time Language Detection**: Automatic detection of message languages using Google Translate API
-- **Personal Translation Preferences**: Individual user language settings and auto-translation controls
 - **Context Menu Translation**: On-demand translation of specific messages through Discord's right-click menu
 - **Comprehensive Language Support**: Support for 25+ languages including English, Spanish, French, German, Japanese, Chinese, and many others
-- **Privacy-Focused**: All automatic translations are sent privately to individual users - no public translation messages in channels
+- **Clean Channel Design**: Translations appear as temporary replies with countdown timers, then auto-delete
 
 ### 2.3 Administrative Tools
 - **Web Dashboard**: Real-time statistics monitoring and user management interface accessible at localhost:3001

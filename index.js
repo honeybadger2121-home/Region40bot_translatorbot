@@ -187,6 +187,8 @@ const languageMap = {
   'hebrew': 'he',
   'hindi': 'hi',
   'thai': 'th',
+  'thailand': 'th',
+  'tha': 'th',
   'vietnamese': 'vi'
 };
 

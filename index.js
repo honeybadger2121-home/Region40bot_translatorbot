@@ -66,7 +66,8 @@ const client = new Client({
     GatewayIntentBits.MessageContent,
     GatewayIntentBits.GuildMembers,
     GatewayIntentBits.GuildVoiceStates,
-    GatewayIntentBits.DirectMessages
+    GatewayIntentBits.DirectMessages,
+    GatewayIntentBits.GuildMessageReactions
   ],
   partials: [Partials.Message, Partials.Channel, Partials.Reaction]
 });
@@ -160,37 +161,783 @@ const recentlyJoined = new Set();
 
 // Language mapping
 const languageMap = {
+  // English variants
   'english': 'en',
   'english.': 'en',
   'eng': 'en',
+  'englisch': 'en',
+  'inglés': 'en',
+  'anglais': 'en',
+  'inglese': 'en',
+  'inglês': 'en',
+  
+  // Spanish variants
   'spanish': 'es',
+  'español': 'es',
+  'espanol': 'es',
+  'espagnol': 'es',
+  'spagnolo': 'es',
+  'espanhol': 'es',
+  'castellano': 'es',
+  'castilian': 'es',
+  
+  // French variants
   'french': 'fr',
+  'français': 'fr',
+  'francais': 'fr',
+  'französisch': 'fr',
+  'francese': 'fr',
+  'francês': 'fr',
+  
+  // German variants
   'german': 'de',
+  'deutsch': 'de',
+  'allemand': 'de',
+  'tedesco': 'de',
+  'alemão': 'de',
+  'alemán': 'de',
+  
+  // Italian variants
   'italian': 'it',
+  'italiano': 'it',
+  'italienisch': 'it',
+  'italien': 'it',
+  
+  // Portuguese variants
   'portuguese': 'pt',
+  'português': 'pt',
+  'portugues': 'pt',
+  'portugiesisch': 'pt',
+  'portugais': 'pt',
+  'brasiliano': 'pt',
+  'brasileiro': 'pt',
+  
+  // Russian variants
   'russian': 'ru',
+  'русский': 'ru',
+  'russe': 'ru',
+  'russo': 'ru',
+  'russisch': 'ru',
+  
+  // Japanese variants
   'japanese': 'ja',
+  'japan': 'ja',
+  '日本語': 'ja',
+  'japonais': 'ja',
+  'giapponese': 'ja',
+  'japonês': 'ja',
+  'japanisch': 'ja',
+  
+  // Chinese variants
   'chinese': 'zh',
+  'china': 'zh',
+  '中文': 'zh',
+  '中国话': 'zh',
+  'chinois': 'zh',
+  'cinese': 'zh',
+  'chinês': 'zh',
+  'chinesisch': 'zh',
+  'mandarin': 'zh',
+  'cantonese': 'zh',
+  
+  // Korean variants
   'korean': 'ko',
+  'korea': 'ko',
+  '한국어': 'ko',
+  'coréen': 'ko',
+  'coreano': 'ko',
+  'koreanisch': 'ko',
+  
+  // Arabic variants
   'arabic': 'ar',
+  'العربية': 'ar',
+  'arabe': 'ar',
+  'arabo': 'ar',
+  'árabe': 'ar',
+  'arabisch': 'ar',
+  
+  // Dutch variants
   'dutch': 'nl',
+  'nederlands': 'nl',
+  'holland': 'nl',
+  'hollandais': 'nl',
+  'olandese': 'nl',
+  'holandês': 'nl',
+  'niederländisch': 'nl',
+  
+  // Polish variants
   'polish': 'pl',
+  'polski': 'pl',
+  'polonais': 'pl',
+  'polacco': 'pl',
+  'polonês': 'pl',
+  'polnisch': 'pl',
+  
+  // Swedish variants
   'swedish': 'sv',
+  'svenska': 'sv',
+  'suédois': 'sv',
+  'svedese': 'sv',
+  'sueco': 'sv',
+  'schwedisch': 'sv',
+  
+  // Norwegian variants
   'norwegian': 'no',
+  'norsk': 'no',
+  'norvégien': 'no',
+  'norvegese': 'no',
+  'norueguês': 'no',
+  'norwegisch': 'no',
+  
+  // Danish variants
   'danish': 'da',
+  'dansk': 'da',
+  'danois': 'da',
+  'danese': 'da',
+  'dinamarquês': 'da',
+  'dänisch': 'da',
+  
+  // Finnish variants
   'finnish': 'fi',
+  'suomi': 'fi',
+  'finnois': 'fi',
+  'finlandese': 'fi',
+  'finlandês': 'fi',
+  'finnisch': 'fi',
+  
+  // Czech variants
   'czech': 'cs',
+  'čeština': 'cs',
+  'tchèque': 'cs',
+  'ceco': 'cs',
+  'tcheco': 'cs',
+  'tschechisch': 'cs',
+  
+  // Hungarian variants
   'hungarian': 'hu',
+  'magyar': 'hu',
+  'hongrois': 'hu',
+  'ungherese': 'hu',
+  'húngaro': 'hu',
+  'ungarisch': 'hu',
+  
+  // Romanian variants
   'romanian': 'ro',
+  'română': 'ro',
+  'roumain': 'ro',
+  'rumeno': 'ro',
+  'romeno': 'ro',
+  'rumänisch': 'ro',
+  
+  // Bulgarian variants
   'bulgarian': 'bg',
+  'български': 'bg',
+  'bulgare': 'bg',
+  'bulgaro': 'bg',
+  'búlgaro': 'bg',
+  'bulgarisch': 'bg',
+  
+  // Greek variants
   'greek': 'el',
+  'ελληνικά': 'el',
+  'grec': 'el',
+  'greco': 'el',
+  'grego': 'el',
+  'griechisch': 'el',
+  
+  // Hebrew variants
   'hebrew': 'he',
+  'עברית': 'he',
+  'hébreu': 'he',
+  'ebraico': 'he',
+  'hebraico': 'he',
+  'hebräisch': 'he',
+  
+  // Hindi variants
   'hindi': 'hi',
+  'हिन्दी': 'hi',
+  'हिंदी': 'hi',
+  'indien': 'hi',
+  'indiano': 'hi',
+  
+  // Thai variants
   'thai': 'th',
   'thailand': 'th',
   'tha': 'th',
-  'vietnamese': 'vi'
+  'ไทย': 'th',
+  'thaï': 'th',
+  'tailandês': 'th',
+  
+  // Vietnamese variants
+  'vietnamese': 'vi',
+  'tiếng việt': 'vi',
+  'vietnamien': 'vi',
+  'vietnamita': 'vi',
+  'vietnamesisch': 'vi',
+  
+  // Turkish variants
+  'turkish': 'tr',
+  'türkçe': 'tr',
+  'turc': 'tr',
+  'turco': 'tr',
+  'türkisch': 'tr',
+  
+  // Ukrainian variants
+  'ukrainian': 'uk',
+  'українська': 'uk',
+  'ukrainien': 'uk',
+  'ucraino': 'uk',
+  'ucraniano': 'uk',
+  'ukrainisch': 'uk',
+  
+  // Indonesian variants
+  'indonesian': 'id',
+  'bahasa indonesia': 'id',
+  'indonésien': 'id',
+  'indonesiano': 'id',
+  'indonésio': 'id',
+  'indonesisch': 'id',
+  
+  // Malay variants
+  'malay': 'ms',
+  'bahasa malaysia': 'ms',
+  'malais': 'ms',
+  'malese': 'ms',
+  'malaio': 'ms',
+  
+  // Filipino variants
+  'filipino': 'tl',
+  'tagalog': 'tl',
+  'philippin': 'tl',
+  'filippino': 'tl',
+  
+  // Additional European languages
+  'slovak': 'sk',
+  'slovenčina': 'sk',
+  'slovaque': 'sk',
+  'slovacco': 'sk',
+  'eslovaco': 'sk',
+  'slowakisch': 'sk',
+  
+  'slovenian': 'sl',
+  'slovenščina': 'sl',
+  'slovène': 'sl',
+  'sloveno': 'sl',
+  'esloveno': 'sl',
+  'slowenisch': 'sl',
+  
+  'croatian': 'hr',
+  'hrvatski': 'hr',
+  'croate': 'hr',
+  'croato': 'hr',
+  'croata': 'hr',
+  'kroatisch': 'hr',
+  
+  'serbian': 'sr',
+  'српски': 'sr',
+  'serbe': 'sr',
+  'serbo': 'sr',
+  'sérvio': 'sr',
+  'serbisch': 'sr',
+  
+  'bosnian': 'bs',
+  'bosanski': 'bs',
+  'bosniaque': 'bs',
+  'bosniaco': 'bs',
+  'bósnio': 'bs',
+  'bosnisch': 'bs',
+  
+  'albanian': 'sq',
+  'shqip': 'sq',
+  'albanais': 'sq',
+  'albanese': 'sq',
+  'albanês': 'sq',
+  'albanisch': 'sq',
+  
+  'macedonian': 'mk',
+  'македонски': 'mk',
+  'macédonien': 'mk',
+  'macedone': 'mk',
+  'macedônio': 'mk',
+  'mazedonisch': 'mk',
+  
+  // Baltic languages
+  'latvian': 'lv',
+  'latviešu': 'lv',
+  'letton': 'lv',
+  'lettone': 'lv',
+  'letão': 'lv',
+  'lettisch': 'lv',
+  
+  'lithuanian': 'lt',
+  'lietuvių': 'lt',
+  'lituanien': 'lt',
+  'lituano': 'lt',
+  'lituano': 'lt',
+  'litauisch': 'lt',
+  
+  'estonian': 'et',
+  'eesti': 'et',
+  'estonien': 'et',
+  'estone': 'et',
+  'estônio': 'et',
+  'estnisch': 'et',
+  
+  // Nordic languages
+  'icelandic': 'is',
+  'íslenska': 'is',
+  'islandais': 'is',
+  'islandese': 'is',
+  'islandês': 'is',
+  'isländisch': 'is',
+  
+  // Celtic languages
+  'welsh': 'cy',
+  'cymraeg': 'cy',
+  'gallois': 'cy',
+  'gallese': 'cy',
+  'galês': 'cy',
+  'walisisch': 'cy',
+  
+  'irish': 'ga',
+  'gaeilge': 'ga',
+  'irlandais': 'ga',
+  'irlandese': 'ga',
+  'irlandês': 'ga',
+  'irisch': 'ga',
+  
+  // Regional languages
+  'catalan': 'ca',
+  'català': 'ca',
+  'catalán': 'ca',
+  'catalão': 'ca',
+  'katalanisch': 'ca',
+  
+  'basque': 'eu',
+  'euskera': 'eu',
+  'basque': 'eu',
+  'basco': 'eu',
+  'basco': 'eu',
+  'baskisch': 'eu',
+  
+  'galician': 'gl',
+  'galego': 'gl',
+  'gallego': 'gl',
+  'galego': 'gl',
+  'galizisch': 'gl'
 };
+
+// Country flag to language mapping - Comprehensive list of 150+ flags
+const flagToLanguage = {
+  // English-speaking countries
+  '🇺🇸': 'en', // United States
+  '🇬🇧': 'en', // United Kingdom
+  '🇨🇦': 'en', // Canada
+  '🇦🇺': 'en', // Australia
+  '🇳🇿': 'en', // New Zealand
+  '🇮🇪': 'en', // Ireland
+  '🇿🇦': 'en', // South Africa
+  '🇯🇲': 'en', // Jamaica
+  '🇹🇹': 'en', // Trinidad and Tobago
+  '🇧🇸': 'en', // Bahamas
+  '🇧🇧': 'en', // Barbados
+  '🇬🇩': 'en', // Grenada
+  '🇱🇨': 'en', // Saint Lucia
+  '🇻🇨': 'en', // Saint Vincent and the Grenadines
+  '🇦🇬': 'en', // Antigua and Barbuda
+  '🇩🇲': 'en', // Dominica
+  '🇰🇳': 'en', // Saint Kitts and Nevis
+  '🇬�': 'en', // Guyana
+  '�🇧🇿': 'en', // Belize
+  '🇲🇹': 'en', // Malta
+  '🇸🇬': 'en', // Singapore
+  '🇭🇰': 'en', // Hong Kong
+  '🇵🇭': 'en', // Philippines (English is official)
+  '🇮🇳': 'en', // India (English is official)
+  '�🇬': 'en', // Nigeria
+  '🇰�🇪': 'en', // Kenya
+  '🇺🇬': 'en', // Uganda
+  '🇬🇭': 'en', // Ghana
+  '🇹🇿': 'en', // Tanzania
+  '🇿🇼': 'en', // Zimbabwe
+  '🇧🇼': 'en', // Botswana
+  '🇿🇲': 'en', // Zambia
+  '🇲🇼': 'en', // Malawi
+  '🇸🇿': 'en', // Eswatini
+  '🇱🇸': 'en', // Lesotho
+  '🇳🇦': 'en', // Namibia
+  '🇱🇷': 'en', // Liberia
+  '🇸🇱': 'en', // Sierra Leone
+  '🇬🇲': 'en', // Gambia
+  '🇫🇯': 'en', // Fiji
+  '🇻🇺': 'en', // Vanuatu
+  '🇸🇧': 'en', // Solomon Islands
+  '🇵🇬': 'en', // Papua New Guinea
+  '🇼🇸': 'en', // Samoa
+  '🇹🇴': 'en', // Tonga
+  '🇰🇮': 'en', // Kiribati
+  '🇹🇻': 'en', // Tuvalu
+  '🇳🇷': 'en', // Nauru
+  '🇵🇼': 'en', // Palau
+  '🇲🇭': 'en', // Marshall Islands
+  '🇫🇲': 'en', // Micronesia
+
+  // Spanish-speaking countries
+  '🇪🇸': 'es', // Spain
+  '🇪🇦': 'es', // Spain (regional flag)
+  '🇲🇽': 'es', // Mexico
+  '🇦🇷': 'es', // Argentina
+  '🇨🇱': 'es', // Chile
+  '🇨🇴': 'es', // Colombia
+  '🇵🇪': 'es', // Peru
+  '🇻🇪': 'es', // Venezuela
+  '🇺🇾': 'es', // Uruguay
+  '🇪🇨': 'es', // Ecuador
+  '🇧🇴': 'es', // Bolivia
+  '🇵🇾': 'es', // Paraguay
+  '🇬🇹': 'es', // Guatemala
+  '🇨🇷': 'es', // Costa Rica
+  '�🇦': 'es', // Panama
+  '🇳🇮': 'es', // Nicaragua
+  '🇭🇳': 'es', // Honduras
+  '🇸🇻': 'es', // El Salvador
+  '🇩🇴': 'es', // Dominican Republic
+  '🇨🇺': 'es', // Cuba
+  '🇵🇷': 'es', // Puerto Rico
+  '�🇶': 'es', // Equatorial Guinea
+
+  // French-speaking countries
+  '�🇫🇷': 'fr', // France
+  '🇧🇪': 'fr', // Belgium
+  '🇨🇭': 'fr', // Switzerland
+  '🇱🇺': 'fr', // Luxembourg
+  '🇲🇨': 'fr', // Monaco
+  '��': 'fr', // Senegal
+  '🇲🇱': 'fr', // Mali
+  '🇧🇫': 'fr', // Burkina Faso
+  '🇳�🇪': 'fr', // Niger
+  '🇹🇩': 'fr', // Chad
+  '🇨🇫': 'fr', // Central African Republic
+  '🇨🇲': 'fr', // Cameroon
+  '🇬🇦': 'fr', // Gabon
+  '🇨🇬': 'fr', // Republic of the Congo
+  '🇨🇩': 'fr', // Democratic Republic of the Congo
+  '🇧🇯': 'fr', // Benin
+  '🇹🇬': 'fr', // Togo
+  '🇨🇮': 'fr', // Côte d'Ivoire
+  '🇬🇳': 'fr', // Guinea
+  '🇲🇬': 'fr', // Madagascar
+  '🇰🇲': 'fr', // Comoros
+  '🇸🇨': 'fr', // Seychelles
+  '🇩🇯': 'fr', // Djibouti
+  '🇭🇹': 'fr', // Haiti
+  '🇻🇺': 'fr', // Vanuatu (French is official)
+
+  // German-speaking countries
+  '🇩🇪': 'de', // Germany
+  '🇦🇹': 'de', // Austria
+  '🇱🇮': 'de', // Liechtenstein
+
+  // Portuguese-speaking countries
+  '🇵🇹': 'pt', // Portugal
+  '🇧🇷': 'pt', // Brazil
+  '🇦🇴': 'pt', // Angola
+  '🇲🇿': 'pt', // Mozambique
+  '🇬🇼': 'pt', // Guinea-Bissau
+  '🇨🇻': 'pt', // Cape Verde
+  '��': 'pt', // São Tomé and Príncipe
+  '🇹🇱': 'pt', // Timor-Leste
+  '🇲🇴': 'pt', // Macau
+
+  // Italian-speaking countries
+  '🇮🇹': 'it', // Italy
+  '🇻🇦': 'it', // Vatican City
+  '🇸🇲': 'it', // San Marino
+
+  // Russian-speaking countries
+  '🇷🇺': 'ru', // Russia
+  '🇧🇾': 'ru', // Belarus
+  '🇰🇿': 'ru', // Kazakhstan
+  '🇰🇬': 'ru', // Kyrgyzstan
+  '🇹🇯': 'ru', // Tajikistan
+
+  // Arabic-speaking countries
+  '🇸🇦': 'ar', // Saudi Arabia
+  '🇦🇪': 'ar', // United Arab Emirates
+  '🇪🇬': 'ar', // Egypt
+  '🇮🇶': 'ar', // Iraq
+  '🇯🇴': 'ar', // Jordan
+  '🇱🇧': 'ar', // Lebanon
+  '🇸🇾': 'ar', // Syria
+  '🇾🇪': 'ar', // Yemen
+  '🇴🇲': 'ar', // Oman
+  '🇰🇼': 'ar', // Kuwait
+  '🇶🇦': 'ar', // Qatar
+  '🇧🇭': 'ar', // Bahrain
+  '🇲🇦': 'ar', // Morocco
+  '🇹🇳': 'ar', // Tunisia
+  '🇩🇿': 'ar', // Algeria
+  '🇱🇾': 'ar', // Libya
+  '🇸🇩': 'ar', // Sudan
+  '🇸🇸': 'ar', // South Sudan
+  '🇪🇷': 'ar', // Eritrea
+  '🇩🇯': 'ar', // Djibouti
+  '🇰🇲': 'ar', // Comoros
+  '🇲�': 'ar', // Mauritania
+  '🇵🇸': 'ar', // Palestine
+
+  // Dutch-speaking countries
+  '🇳🇱': 'nl', // Netherlands
+  '🇸🇷': 'nl', // Suriname
+
+  // Individual language countries
+  '🇯🇵': 'ja', // Japanese
+  '🇨🇳': 'zh', // Chinese (Mandarin)
+  '🇹🇼': 'zh', // Chinese (Traditional)
+  '🇰🇷': 'ko', // Korean
+  '��': 'th', // Thai
+  '��': 'vi', // Vietnamese
+  '🇮🇩': 'id', // Indonesian
+  '��': 'ms', // Malay
+  '🇹🇷': 'tr', // Turkish
+  '🇺🇦': 'uk', // Ukrainian
+  '🇵🇱': 'pl', // Polish
+  '🇸🇪': 'sv', // Swedish
+  '🇳🇴': 'no', // Norwegian
+  '🇩🇰': 'da', // Danish
+  '🇫🇮': 'fi', // Finnish
+  '��': 'is', // Icelandic
+  '🇭🇺': 'hu', // Hungarian
+  '🇨🇿': 'cs', // Czech
+  '🇸🇰': 'sk', // Slovak
+  '🇸🇮': 'sl', // Slovenian
+  '🇭🇷': 'hr', // Croatian
+  '🇷🇸': 'sr', // Serbian
+  '🇧🇦': 'bs', // Bosnian
+  '🇲�': 'mk', // Macedonian
+  '🇦🇱': 'sq', // Albanian
+  '🇲🇪': 'sr', // Montenegro (Serbian)
+  '🇽🇰': 'sq', // Kosovo (Albanian)
+  '🇧🇬': 'bg', // Bulgarian
+  '🇷🇴': 'ro', // Romanian
+  '🇲🇩': 'ro', // Moldova (Romanian)
+  '🇱🇹': 'lt', // Lithuanian
+  '🇱�': 'lv', // Latvian
+  '🇪🇪': 'et', // Estonian
+  '�🇬🇷': 'el', // Greek
+  '🇨🇾': 'el', // Cyprus (Greek)
+  '🇮🇱': 'he', // Hebrew
+  '��': 'hy', // Armenian
+  '🇬🇪': 'ka', // Georgian
+  '��': 'az', // Azerbaijani
+  '��': 'uz', // Uzbek
+  '🇹🇲': 'tk', // Turkmen
+  '��': 'mn', // Mongolian
+  '🇰🇭': 'km', // Khmer (Cambodian)
+  '�🇦': 'lo', // Lao
+  '�🇲�': 'my', // Myanmar (Burmese)
+  '��': 'ne', // Nepali
+  '🇱🇰': 'si', // Sinhala (Sri Lanka)
+  '��': 'bn', // Bengali (Bangladesh)
+  '��': 'ur', // Urdu (Pakistan)
+  '��': 'fa', // Persian/Dari (Afghanistan)
+  '��': 'fa', // Persian (Iran)
+  '�🇹': 'am', // Amharic (Ethiopia)
+  '��': 'sw', // Swahili (Kenya)
+  '��': 'sw', // Swahili (Tanzania)
+  '��': 'sw', // Swahili (Uganda)
+  '🇷🇼': 'rw', // Kinyarwanda
+  '��': 'rn', // Kirundi
+  '🇲🇬': 'mg', // Malagasy
+
+  // Additional European languages
+  '��': 'ca', // Catalan (using Spain flag as alternative)
+  '��': 'ca', // Andorra (Catalan)
+  '��': 'eu', // Basque (using Spain flag as alternative)
+  '🇸': 'gl', // Galician (using Spain flag as alternative)
+  '�🇪': 'ga', // Irish Gaelic
+  '🇬🇧': 'cy', // Welsh (using UK flag)
+  '��': 'gd', // Scottish Gaelic (using UK flag)
+
+  // Asian languages with specific regions
+  '��': 'hi', // Hindi (India)
+  '��': 'bn', // Bengali (India)
+  '��': 'te', // Telugu
+  '🇮🇳': 'mr', // Marathi
+  '🇮🇳': 'ta', // Tamil
+  '🇮🇳': 'gu', // Gujarati
+  '��': 'kn', // Kannada
+  '🇮🇳': 'ml', // Malayalam
+  '��': 'or', // Odia
+  '🇮🇳': 'pa', // Punjabi
+
+  // Pacific Islands with English
+  '🇬🇺': 'en', // Guam
+  '🇦🇸': 'en', // American Samoa
+  '🇲🇵': 'en', // Northern Mariana Islands
+  '�🇮': 'en', // US Virgin Islands
+  '🇵🇷': 'en', // Puerto Rico (bilingual)
+
+  // Caribbean with various languages
+  '��': 'nl', // Aruba (Dutch)
+  '🇨🇼': 'nl', // Curaçao (Dutch)
+  '🇸�': 'nl', // Sint Maarten (Dutch)
+  '🇲🇫': 'fr', // Saint Martin (French)
+  '🇬🇵': 'fr', // Guadeloupe (French)
+  '��': 'fr', // Martinique (French)
+  '🇬🇫': 'fr', // French Guiana (French)
+
+  // Additional African languages
+  '��': 'af', // Afrikaans (South Africa)
+  '🇿🇦': 'zu', // Zulu
+  '��': 'xh', // Xhosa
+  '🇳🇬': 'ha', // Hausa (Nigeria)
+  '🇳🇬': 'yo', // Yoruba (Nigeria)
+  '🇳🇬': 'ig', // Igbo (Nigeria)
+  
+  // Regional and subdivision flags - common variants users might encounter
+  '🏴󠁧󠁢󠁥󠁮󠁧󠁿': 'en', // England
+  '🏴󠁧󠁢󠁳󠁣󠁴󠁿': 'en', // Scotland  
+  '🏴󠁧󠁢󠁷󠁬󠁳󠁿': 'en', // Wales
+  '🇺🇳': 'en', // United Nations (default to English)
+};
+
+// Language to flag mapping (for responses) - Comprehensive list
+const languageToFlag = {
+  'en': '🇺🇸', // English
+  'es': '🇪🇸', // Spanish
+  'fr': '🇫🇷', // French
+  'de': '🇩🇪', // German
+  'it': '🇮🇹', // Italian
+  'pt': '🇵🇹', // Portuguese
+  'ru': '🇷🇺', // Russian
+  'ja': '🇯🇵', // Japanese
+  'zh': '🇨🇳', // Chinese
+  'ko': '🇰🇷', // Korean
+  'ar': '🇸🇦', // Arabic
+  'nl': '🇳🇱', // Dutch
+  'pl': '🇵🇱', // Polish
+  'sv': '🇸🇪', // Swedish
+  'no': '🇳🇴', // Norwegian
+  'da': '🇩🇰', // Danish
+  'fi': '🇫🇮', // Finnish
+  'cs': '🇨🇿', // Czech
+  'hu': '🇭🇺', // Hungarian
+  'ro': '🇷🇴', // Romanian
+  'bg': '🇧🇬', // Bulgarian
+  'el': '🇬🇷', // Greek
+  'he': '🇮🇱', // Hebrew
+  'hi': '🇮🇳', // Hindi
+  'th': '🇹🇭', // Thai
+  'vi': '🇻🇳', // Vietnamese
+  'id': '🇮🇩', // Indonesian
+  'ms': '🇲🇾', // Malay
+  'tl': '🇵🇭', // Filipino
+  'tr': '🇹🇷', // Turkish
+  'uk': '🇺🇦', // Ukrainian
+  'sk': '🇸🇰', // Slovak
+  'sl': '🇸🇮', // Slovenian
+  'hr': '🇭🇷', // Croatian
+  'sr': '🇷🇸', // Serbian
+  'bs': '🇧🇦', // Bosnian
+  'mk': '🇲🇰', // Macedonian
+  'sq': '🇦🇱', // Albanian
+  'lv': '🇱🇻', // Latvian
+  'lt': '🇱🇹', // Lithuanian
+  'et': '🇪🇪', // Estonian
+  'is': '🇮🇸', // Icelandic
+  'mt': '🇲🇹', // Maltese
+  'cy': '🇬🇧', // Welsh
+  'ga': '🇮🇪', // Irish
+  'gd': '🇬🇧', // Scottish Gaelic
+  'ca': '🇦🇩', // Catalan
+  'eu': '🇪🇸', // Basque
+  'gl': '🇪🇸', // Galician
+  'hy': '🇦🇲', // Armenian
+  'ka': '🇬🇪', // Georgian
+  'az': '🇦🇿', // Azerbaijani
+  'uz': '🇺🇿', // Uzbek
+  'tk': '🇹🇲', // Turkmen
+  'mn': '🇲🇳', // Mongolian
+  'km': '🇰🇭', // Khmer
+  'lo': '🇱🇦', // Lao
+  'my': '🇲🇲', // Myanmar
+  'ne': '🇳🇵', // Nepali
+  'si': '🇱🇰', // Sinhala
+  'bn': '🇧🇩', // Bengali
+  'ur': '🇵🇰', // Urdu
+  'fa': '🇮🇷', // Persian
+  'ps': '🇦�', // Pashto
+  'am': '🇪🇹', // Amharic
+  'sw': '🇰🇪', // Swahili
+  'zu': '🇿🇦', // Zulu
+  'af': '🇿�🇦', // Afrikaans
+  'xh': '🇿🇦', // Xhosa
+  'ha': '🇳🇬', // Hausa
+  'yo': '🇳🇬', // Yoruba
+  'ig': '🇳🇬', // Igbo
+  'rw': '🇷🇼', // Kinyarwanda
+  'rn': '🇧🇮', // Kirundi
+  'mg': '🇲🇬', // Malagasy
+  'te': '🇮🇳', // Telugu
+  'mr': '🇮🇳', // Marathi
+  'ta': '🇮🇳', // Tamil
+  'gu': '🇮🇳', // Gujarati
+  'kn': '🇮🇳', // Kannada
+  'ml': '🇮🇳', // Malayalam
+  'or': '🇮🇳', // Odia
+  'pa': '🇮🇳', // Punjabi
+  'as': '🇮🇳', // Assamese
+  'be': '🇧🇾', // Belarusian
+  'kk': '🇰🇿', // Kazakh
+  'ky': '🇰🇬', // Kyrgyz
+  'tg': '🇹🇯', // Tajik
+  'lb': '🇱🇺', // Luxembourgish
+  'fo': '🇫🇴', // Faroese
+  'kl': '🇬🇱'  // Greenlandic
+};
+
+// Function to send private translation reply
+async function sendFlagTranslation(message, targetUser, flag, originalText, translatedText, fromLang, toLang) {
+  try {
+    const embed = new EmbedBuilder()
+      .setTitle(`${flag} Translation`)
+      .setDescription(`**Original (${fromLang.toUpperCase()}):**\n${originalText.length > 500 ? originalText.substring(0, 500) + '...' : originalText}`)
+      .addFields([
+        { 
+          name: `**Translated (${toLang.toUpperCase()}):**`, 
+          value: translatedText.length > 1000 ? translatedText.substring(0, 1000) + '...' : translatedText 
+        }
+      ])
+      .setColor(0x4A90E2)
+      .setFooter({ 
+        text: `Translation • This message will auto-delete in 45 seconds`, 
+        iconURL: message.author.displayAvatarURL({ dynamic: true }) 
+      })
+      .setTimestamp();
+
+    // Send as reply to the original message, mentioning the user who requested it
+    const replyMessage = await message.reply({
+      content: `${targetUser}, here's your ${flag} translation:`,
+      embeds: [embed],
+      allowedMentions: { users: [targetUser.id] }
+    });
+
+    // Auto-delete after 45 seconds
+    setTimeout(async () => {
+      try {
+        await replyMessage.delete();
+      } catch (error) {
+        // Message might already be deleted
+      }
+    }, 45000);
+
+    logTranslation(`Sent ${flag} translation for user ${targetUser.username} (${fromLang} → ${toLang})`);
+    
+  } catch (error) {
+    console.error('Error sending flag translation:', error);
+  }
+}
 
 // Database helper functions
 const dbHelpers = {
@@ -262,9 +1009,14 @@ async function detectLanguage(text) {
   
   try {
     const res = await translateAPI(text);
-    const lang = res.from.language.iso;
-    translationCache.set(cacheKey, lang);
-    return lang;
+    let detectedLang = res.from.language.iso;
+    
+    // Normalize detected language to match our language mapping system
+    detectedLang = languageMap[detectedLang] || detectedLang;
+    
+    translationCache.set(cacheKey, detectedLang);
+    logTranslation(`Language detected: ${res.from.language.iso} → normalized to: ${detectedLang}`);
+    return detectedLang;
   } catch (error) {
     console.error('Language detection error:', error);
     return 'en';
@@ -462,8 +1214,16 @@ const commands = [
     description: 'View the bot\'s terms of service'
   },
   {
+    name: 'flags',
+    description: 'See all supported country flags for translation'
+  },
+  {
     name: 'help',
     description: 'Get help with bot commands and features'
+  },
+  {
+    name: 'get-translation',
+    description: 'Get your private translation (only you can see it)'
   },
   {
     name: 'testlang',
@@ -501,6 +1261,13 @@ client.once(Events.ClientReady, async () => {
   console.log(`✅ ${client.user.tag} is online!`);
   logVerification(`Bot started: ${client.user.tag} is online`);
   logTranslation(`Translation system initialized`);
+  
+  // Log intent information for debugging
+  console.log('🔍 Bot intents debugging:');
+  console.log(`   Intents bitfield: ${client.options.intents.bitfield}`);
+  console.log(`   Has GuildMessageReactions: ${client.options.intents.has('GuildMessageReactions')}`);
+  console.log(`   Has MessageContent: ${client.options.intents.has('MessageContent')}`);
+  console.log(`   All intents: ${client.options.intents.toArray().join(', ')}`);
   
   // Log directory info
   console.log(`📂 Logs will be saved to: ${logsDir}`);
@@ -694,6 +1461,90 @@ async function runOnboardingReport() {
   }
 }
 
+// Function to send ephemeral translation messages
+async function sendEphemeralTranslation(channel, userId, originalAuthor, originalText, translatedText, fromLang, toLang) {
+  try {
+    // Double-check that translation is actually needed
+    if (fromLang === toLang) {
+      logTranslation(`Skipping translation for user ${userId} - same language (${fromLang} === ${toLang})`);
+      return;
+    }
+    
+    // Also check if the translated text is different enough to warrant showing
+    if (translatedText.toLowerCase().trim() === originalText.toLowerCase().trim()) {
+      logTranslation(`Skipping translation for user ${userId} - identical text after translation`);
+      return;
+    }
+    
+    // Store the translation for the user to retrieve via slash command
+    if (!client.userTranslations) {
+      client.userTranslations = new Map();
+    }
+    
+    const translationKey = `${userId}_${channel.id}`;
+    const translationData = {
+      originalAuthor: originalAuthor.username,
+      originalText,
+      translatedText,
+      fromLang,
+      toLang,
+      timestamp: Date.now(),
+      channelName: channel.name,
+      authorAvatar: originalAuthor.displayAvatarURL()
+    };
+    
+    // Store the translation (overwrite any existing one for this user in this channel)
+    client.userTranslations.set(translationKey, translationData);
+    
+    // Send a very subtle notification that doesn't @ the user
+    const notificationEmbed = new EmbedBuilder()
+      .setDescription(`💬 **New translation available** - Use \`/get-translation\` to view privately`)
+      .setColor(0x00AE86)
+      .setTimestamp()
+      .setFooter({ text: `For: ${channel.guild.members.cache.get(userId)?.displayName || 'Unknown User'}` });
+
+    const tempMessage = await channel.send({ 
+      embeds: [notificationEmbed],
+      allowedMentions: { users: [] } // No mentions at all
+    });
+    
+    // Delete the notification after 10 seconds
+    setTimeout(async () => {
+      try {
+        await tempMessage.delete();
+      } catch (error) {
+        // Message might already be deleted
+      }
+    }, 10000); // 10 seconds
+    
+    // Clean up old translations after 5 minutes
+    setTimeout(() => {
+      client.userTranslations.delete(translationKey);
+    }, 300000); // 5 minutes
+    
+    logTranslation(`Translation stored for user ${userId} in ${channel.name} (${fromLang} → ${toLang})`);
+
+  } catch (error) {
+    console.error('Error sending ephemeral translation:', error);
+  }
+}
+
+// Function to check if user is online/active
+function isUserOnline(guild, userId) {
+  try {
+    const member = guild.members.cache.get(userId);
+    if (!member) return false;
+    
+    const presence = member.presence;
+    if (!presence) return false;
+    
+    // Consider user online if they're online, idle, or dnd (not offline/invisible)
+    return ['online', 'idle', 'dnd'].includes(presence.status);
+  } catch (error) {
+    return false;
+  }
+}
+
 // Member join event
 client.on('guildMemberAdd', async (member) => {
   // Strong debounce to prevent multiple triggers - check both caches
@@ -831,13 +1682,57 @@ client.on('messageCreate', async (message) => {
           // User is verified but hasn't started onboarding yet
           await startAutomatedOnboarding(message.author);
         } else {
-          // User is already in onboarding process
-          const errorEmbed = new EmbedBuilder()
-            .setTitle('ℹ️ Already Started')
-            .setDescription('You\'ve already started the onboarding process. Please continue with the current step.')
-            .setColor(0x3498DB);
+          // User is already in onboarding process - help them continue
+          const currentStep = userProfile.onboardingStep;
           
-          await message.author.send({ embeds: [errorEmbed] });
+          if (currentStep === 'profile') {
+            // Remind them about profile completion
+            const profileEmbed = new EmbedBuilder()
+              .setTitle('📝 Continue Profile Setup')
+              .setDescription('You\'re already in the onboarding process! Let\'s complete your profile setup.')
+              .addFields([
+                { name: '🎮 In-Game Name', value: 'What is your in-game name?' },
+                { name: '🌍 Timezone/Country', value: 'What timezone/country are you in? (e.g., EST, PST, UK, Germany)' },
+                { name: '🌐 Language', value: 'What is your preferred language?\n\n**Available codes:**\n`en` (English), `es` (Spanish), `fr` (French), `de` (German), `it` (Italian), `pt` (Portuguese), `ru` (Russian), `ja` (Japanese), `zh` (Chinese), `ko` (Korean), `ar` (Arabic), `nl` (Dutch), `pl` (Polish), `sv` (Swedish), `no` (Norwegian), `da` (Danish), `fi` (Finnish), `cs` (Czech), `hu` (Hungarian), `ro` (Romanian), `bg` (Bulgarian), `el` (Greek), `he` (Hebrew), `hi` (Hindi), `th` (Thai), `vi` (Vietnamese)\n\nYou can use either the code (e.g., `en`) or full name (e.g., `English`).' }
+              ])
+              .setColor(0x00FF00)
+              .setFooter({ text: '⏰ Please reply with: IGN | Timezone | Language (separated by | symbol)' });
+            
+            await message.author.send({ embeds: [profileEmbed] });
+            
+          } else if (currentStep === 'alliance') {
+            // Remind them about alliance selection
+            const allianceEmbed = new EmbedBuilder()
+              .setTitle('🛡️ Continue Alliance Selection')
+              .setDescription('You\'re almost done! Please choose your alliance from the list below:')
+              .setColor(0x00AE86);
+            
+            const allianceOptions = new EmbedBuilder()
+              .setTitle('🛡️ Available Alliances')
+              .setDescription('Reply with the **number** of your chosen alliance:')
+              .addFields([
+                { name: '1️⃣ ANQA', value: 'ANQA Alliance', inline: true },
+                { name: '2️⃣ SPBG', value: 'SPBG Alliance', inline: true },
+                { name: '3️⃣ MGXT', value: 'MGXT Alliance', inline: true },
+                { name: '4️⃣ 1ARK', value: '1ARK Alliance', inline: true },
+                { name: '5️⃣ JAXA', value: 'JAXA Alliance', inline: true },
+                { name: '6️⃣ JAX2', value: 'JAX2 Alliance', inline: true },
+                { name: '7️⃣ ANK', value: 'ANK Alliance', inline: true }
+              ])
+              .setColor(0x9932CC)
+              .setFooter({ text: 'Reply with just the number (1-7)' });
+            
+            await message.author.send({ embeds: [allianceEmbed, allianceOptions] });
+            
+          } else if (currentStep === 'complete') {
+            // They're already done
+            const completedEmbed = new EmbedBuilder()
+              .setTitle('✅ Already Completed')
+              .setDescription('Your onboarding is already complete! You have full access to all server features.')
+              .setColor(0x00FF00);
+            
+            await message.author.send({ embeds: [completedEmbed] });
+          }
         }
       } else if (userProfile && userProfile.verified && userProfile.onboardingStep && userProfile.onboardingStep !== 'complete') {
         await handleOnboardingResponse(message.author, message.content.trim());
@@ -848,124 +1743,96 @@ client.on('messageCreate', async (message) => {
     return;
   }
   
-  // Auto-translation logic for guild messages
+  // Flag-based translation system for guild messages
   if (!message.guild || !message.content.trim()) return;
   
   try {
-    // Get guild members first to ensure we only work with current guild members
-    const guildMembers = await message.guild.members.fetch();
-    const guildMemberIds = Array.from(guildMembers.keys());
-    
-    if (guildMemberIds.length === 0) return;
-    
-    // Get only users who are in THIS guild AND have auto-translate enabled
-    const placeholders = guildMemberIds.map(() => '?').join(',');
-    const allProfiles = await new Promise((resolve, reject) => {
-      db.all(
-        `SELECT userId, language FROM profiles 
-         WHERE autoTranslate = 1 
-         AND language IS NOT NULL 
-         AND userId IN (${placeholders})`, 
-        guildMemberIds, 
-        (err, rows) => {
-          if (err) reject(err);
-          else resolve(rows || []);
-        }
-      );
-    });
-    
-    // Filter out the message sender
-    const usersWithAutoTranslate = allProfiles.filter(profile => 
-      profile.userId !== message.author.id
-    );
-    
-    logTranslation(`Guild: ${message.guild.name}, Channel: #${message.channel.name}`);
-    logTranslation(`Users with auto-translate in this guild: ${usersWithAutoTranslate.length}`);
-    logTranslation(`Languages needed: ${usersWithAutoTranslate.map(u => u.language).join(', ')}`);
-    
-    if (usersWithAutoTranslate.length > 0) {
-      const detectedLang = await detectLanguage(message.content);
-      logTranslation(`Detected language: ${detectedLang}`);
-      
-      // Group users by target language to reduce message count
-      const usersByLanguage = {};
-      for (const userProfile of usersWithAutoTranslate) {
-        // Apply language mapping to convert variations like "eng" to "en"
-        const targetLang = languageMap[userProfile.language.toLowerCase()] || userProfile.language.toLowerCase();
-        
-        // Skip if detected language matches target language (no translation needed)
-        if (detectedLang === targetLang) {
-          logTranslation(`Skipping translation for user ${userProfile.userId} - same language (${detectedLang})`);
-          continue;
-        }
-        
-        if (!usersByLanguage[targetLang]) {
-          usersByLanguage[targetLang] = [];
-        }
-        usersByLanguage[targetLang].push(userProfile);
-      }
-      
-      // Create one translation message per language
-      for (const [targetLang, users] of Object.entries(usersByLanguage)) {
-        const translated = await translate(message.content, targetLang);
-        
-        // Only send translation if it's actually different from the original
-        if (translated && translated.toLowerCase() !== message.content.toLowerCase()) {
-          try {
-            // Send DM to each user who needs this translation
-            for (const userProfile of users) {
-              try {
-                const user = await client.users.fetch(userProfile.userId);
-                
-                const translationEmbed = new EmbedBuilder()
-                  .setAuthor({ 
-                    name: `Translation from #${message.channel.name}`,
-                    iconURL: message.author.displayAvatarURL()
-                  })
-                  .setDescription(`**${message.author.username}:** ${message.content}\n\n**Translation (${detectedLang} → ${targetLang}):** ${translated}`)
-                  .setColor(0x00AE86)
-                  .setTimestamp()
-                  .setFooter({ text: `Auto-translation • Private to you only` });
-                
-                await user.send({ embeds: [translationEmbed] });
-                logTranslation(`Sent private DM translation to user ${userProfile.userId}`);
-                
-              } catch (dmError) {
-                // If DM fails, try to create a temporary message in channel that auto-deletes very quickly
-                try {
-                  const tempMessage = await message.channel.send({
-                    content: `<@${userProfile.userId}> You have DMs disabled. Translation: ${translated}`,
-                    allowedMentions: { users: [userProfile.userId] }
-                  });
-                  
-                  // Delete immediately after 3 seconds since DMs failed
-                  setTimeout(async () => {
-                    try {
-                      await tempMessage.delete();
-                    } catch (deleteError) {
-                      // Message might already be deleted
-                    }
-                  }, 3000);
-                  
-                  logTranslation(`Sent temporary channel message to user ${userProfile.userId} (DMs disabled)`);
-                } catch (channelError) {
-                  logTranslation(`Failed to send translation to user ${userProfile.userId}: ${channelError.message}`);
-                }
-              }
-            }
-            
-            logTranslation(`Sent ${detectedLang}→${targetLang} translation in channel for users: ${users.map(u => u.userId).join(', ')}`);
-          } catch (error) {
-            logTranslation(`Failed to send translation in channel for ${targetLang}: ${error.message}`);
-          }
-        }
+    // Check if message contains any country flag emojis
+    const flagsInMessage = [];
+    for (const [flag, langCode] of Object.entries(flagToLanguage)) {
+      if (message.content.includes(flag)) {
+        flagsInMessage.push({ flag, langCode });
       }
     }
     
-    // Note: Server-wide auto-translation removed in favor of private user translations
-    // Users can enable auto-translate in their profiles to receive private DM translations
+    if (flagsInMessage.length === 0) return;
+    
+    // Check if this is a reply to another message
+    const referencedMessage = message.reference ? await message.channel.messages.fetch(message.reference.messageId).catch(() => null) : null;
+    
+    if (!referencedMessage || !referencedMessage.content.trim()) {
+      // If no referenced message, inform user how to use the system
+      const helpEmbed = new EmbedBuilder()
+        .setTitle('🌍 Translation Request')
+        .setDescription('To request a translation, you have **two options**:\n\n🎯 **Reply** to a message with a country flag emoji\n🎯 **React** to a message with a country flag emoji\n\n**Example:** Reply to a message with 🇪🇸 or react with 🇪🇸 to get it translated to Spanish')
+        .addFields([
+          { 
+            name: '🚀 How to use:', 
+            value: '1. Find a message you want translated\n2. **Reply** to it with a flag emoji (🇺🇸 🇪🇸 🇫🇷 🇩🇪 etc.) OR\n3. **React** to it with a flag emoji\n4. Get your private translation that auto-deletes in 45 seconds!'
+          },
+          {
+            name: '🏁 Popular flags:',
+            value: '🇺🇸 English • 🇪🇸 Spanish • 🇫🇷 French • 🇩🇪 German\n🇮🇹 Italian • 🇵🇹 Portuguese • 🇷🇺 Russian • 🇯🇵 Japanese\n🇨🇳 Chinese • 🇰🇷 Korean • 🇸🇦 Arabic • 🇹🇭 Thai'
+          }
+        ])
+        .setColor(0x3498DB);
+      
+      const helpMessage = await message.reply({ embeds: [helpEmbed] });
+      
+      // Auto-delete help message after 30 seconds
+      setTimeout(async () => {
+        try {
+          await helpMessage.delete();
+          await message.delete();
+        } catch (error) {
+          // Messages might already be deleted
+        }
+      }, 30000);
+      
+      return;
+    }
+    
+    // Process each flag found in the reply
+    for (const { flag, langCode } of flagsInMessage) {
+      try {
+        // Detect original language
+        const detectedLang = await detectLanguage(referencedMessage.content);
+        
+        // Skip if same language
+        if (detectedLang === langCode) {
+          logTranslation(`Skipping ${flag} translation - same language (${detectedLang} === ${langCode})`);
+          continue;
+        }
+        
+        // Translate the referenced message
+        const translatedText = await translate(referencedMessage.content, langCode);
+        
+        if (translatedText && translatedText.toLowerCase() !== referencedMessage.content.toLowerCase()) {
+          await sendFlagTranslation(
+            referencedMessage, 
+            message.author, 
+            flag, 
+            referencedMessage.content, 
+            translatedText, 
+            detectedLang, 
+            langCode
+          );
+          
+          // Delete the flag request message
+          try {
+            await message.delete();
+          } catch (error) {
+            // Message might already be deleted
+          }
+        }
+        
+      } catch (error) {
+        logTranslation(`Error processing ${flag} translation: ${error.message}`);
+      }
+    }
+    
   } catch (error) {
-    console.error('Error in message auto-translation:', error);
+    console.error('Error in flag-based translation:', error);
   }
 });
 
@@ -981,6 +1848,172 @@ client.on('interactionCreate', async (interaction) => {
     await handleModal(interaction);
   } else if (interaction.isMessageContextMenuCommand()) {
     await handleContextMenu(interaction);
+  }
+});
+
+// Message reaction handler for flag translations
+client.on('messageReactionAdd', async (reaction, user) => {
+  // Debug logging
+  console.log(`[REACTION] Reaction added: ${reaction.emoji.name} by ${user.username}`);
+  
+  // Ignore bot reactions
+  if (user.bot) {
+    console.log(`[REACTION] Ignoring bot reaction from ${user.username}`);
+    return;
+  }
+  
+  try {
+    // Fetch the reaction if it's partial
+    if (reaction.partial) {
+      try {
+        await reaction.fetch();
+        console.log(`[REACTION] Fetched partial reaction`);
+      } catch (error) {
+        console.error('Error fetching reaction:', error);
+        return;
+      }
+    }
+    
+    // Fetch the message if it's partial
+    if (reaction.message.partial) {
+      try {
+        await reaction.message.fetch();
+        console.log(`[REACTION] Fetched partial message`);
+      } catch (error) {
+        console.error('Error fetching message:', error);
+        return;
+      }
+    }
+    
+    const message = reaction.message;
+    const emoji = reaction.emoji.name;
+    
+    console.log(`[REACTION] Processing emoji: ${emoji}`);
+    console.log(`[REACTION] Message content: ${message.content?.substring(0, 50)}...`);
+    
+    // Check if the emoji is a supported flag
+    if (!flagToLanguage[emoji]) {
+      console.log(`[REACTION] Unsupported flag emoji: ${emoji}`);
+      return; // Not a supported flag emoji
+    }
+    
+    console.log(`[REACTION] Found supported flag: ${emoji} -> ${flagToLanguage[emoji]}`);
+    
+    // Don't translate the user's own messages
+    if (message.author.id === user.id) {
+      console.log(`[REACTION] User trying to translate own message`);
+      // Remove the reaction and send a helpful message
+      try {
+        await reaction.users.remove(user.id);
+        const helpMessage = await message.reply(`${user}, you can't translate your own messages! 😊`);
+        setTimeout(async () => {
+          try {
+            await helpMessage.delete();
+          } catch (error) {
+            // Message might already be deleted
+          }
+        }, 5000);
+      } catch (error) {
+        console.error('Error removing reaction or sending help:', error);
+      }
+      return;
+    }
+    
+    // Don't translate empty messages
+    if (!message.content || !message.content.trim()) {
+      console.log(`[REACTION] Empty message content`);
+      try {
+        await reaction.users.remove(user.id);
+        const helpMessage = await message.reply(`${user}, this message has no text to translate! 📝`);
+        setTimeout(async () => {
+          try {
+            await helpMessage.delete();
+          } catch (error) {
+            // Message might already be deleted
+          }
+        }, 5000);
+      } catch (error) {
+        console.error('Error handling empty message:', error);
+      }
+      return;
+    }
+    
+    const targetLang = flagToLanguage[emoji];
+    console.log(`[REACTION] Target language: ${targetLang}`);
+    
+    // Detect the original language
+    const detectedLang = await detectLanguage(message.content);
+    console.log(`[REACTION] Detected language: ${detectedLang}`);
+    
+    // Skip if same language
+    if (detectedLang === targetLang) {
+      console.log(`[REACTION] Same language detected, skipping`);
+      try {
+        await reaction.users.remove(user.id);
+        const helpMessage = await message.reply(`${user}, this message is already in ${emoji} ${targetLang.toUpperCase()}! 🌍`);
+        setTimeout(async () => {
+          try {
+            await helpMessage.delete();
+          } catch (error) {
+            // Message might already be deleted
+          }
+        }, 5000);
+      } catch (error) {
+        console.error('Error handling same language:', error);
+      }
+      logTranslation(`Skipping ${emoji} reaction translation - same language (${detectedLang} === ${targetLang})`);
+      return;
+    }
+    
+    console.log(`[REACTION] Starting translation from ${detectedLang} to ${targetLang}`);
+    
+    // Translate the message
+    const translatedText = await translate(message.content, targetLang);
+    console.log(`[REACTION] Translation result: ${translatedText?.substring(0, 50)}...`);
+    
+    if (translatedText && translatedText.toLowerCase() !== message.content.toLowerCase()) {
+      // Remove the reaction first
+      try {
+        await reaction.users.remove(user.id);
+        console.log(`[REACTION] Removed reaction from user`);
+      } catch (error) {
+        console.error('Error removing reaction:', error);
+      }
+      
+      // Send the translation
+      await sendFlagTranslation(
+        message, 
+        user, 
+        emoji, 
+        message.content, 
+        translatedText, 
+        detectedLang, 
+        targetLang
+      );
+      
+      console.log(`[REACTION] Successfully sent translation`);
+      logTranslation(`Processed ${emoji} reaction translation for user ${user.username} (${detectedLang} → ${targetLang})`);
+    } else {
+      console.log(`[REACTION] Translation failed or was identical`);
+      // Remove reaction if translation failed or was identical
+      try {
+        await reaction.users.remove(user.id);
+        const helpMessage = await message.reply(`${user}, couldn't translate this message to ${emoji}. Try a different language! 🤔`);
+        setTimeout(async () => {
+          try {
+            await helpMessage.delete();
+          } catch (error) {
+            // Message might already be deleted
+          }
+        }, 5000);
+      } catch (error) {
+        console.error('Error handling failed translation:', error);
+      }
+    }
+    
+  } catch (error) {
+    console.error('Error handling message reaction:', error);
+    logTranslation(`Error processing reaction: ${error.message}`);
   }
 });
 
@@ -1039,8 +2072,14 @@ async function handleSlashCommand(interaction) {
       case 'resetall':
         await handleResetAllCommand(interaction);
         break;
+      case 'flags':
+        await handleFlagsCommand(interaction);
+        break;
       case 'help':
         await handleHelpCommand(interaction);
+        break;
+      case 'get-translation':
+        await handleGetTranslationCommand(interaction);
         break;
       case 'testlang':
         await handleTestLangCommand(interaction);
@@ -1552,13 +2591,16 @@ async function setNicknameWithAlliance(member, allianceTag, userProfile) {
 
 async function startAutomatedOnboarding(user) {
   try {
-    // Check if already in onboarding process
+    // Check current onboarding status
     const userProfile = await dbHelpers.getUserProfile(user.id);
-    if (userProfile && userProfile.verified && userProfile.onboardingStep) {
-      console.log(`User ${user.username} already in onboarding process, skipping duplicate`);
+    
+    // If user is already verified and in process, don't restart
+    if (userProfile && userProfile.verified && userProfile.onboardingStep && userProfile.onboardingStep !== 'pending') {
+      logVerification(`User ${user.username} already in onboarding process (${userProfile.onboardingStep}), skipping duplicate`);
       return;
     }
     
+    // Set or update to profile step
     await dbHelpers.updateUserProfile(user.id, { 
       verified: 1,
       onboardingStep: 'profile'
@@ -1572,6 +2614,7 @@ async function startAutomatedOnboarding(user) {
           const notOnboardedRole = guild.roles.cache.find(role => role.name === 'not-onboarded');
           if (notOnboardedRole && member.roles.cache.has(notOnboardedRole.id)) {
             await member.roles.remove(notOnboardedRole, 'Completed automated verification');
+            logVerification(`Removed "not-onboarded" role from ${user.username} in ${guild.name}`);
           }
         }
       } catch (error) {
@@ -1598,8 +2641,8 @@ async function startAutomatedOnboarding(user) {
     console.error('Error in automated onboarding:', error);
     
     const errorEmbed = new EmbedBuilder()
-      .setTitle('⚠️ Onboarding Error')
-      .setDescription('There was an error starting your onboarding process. Please contact a server administrator.')
+      .setTitle('❌ Setup Error')
+      .setDescription('There was an error starting your profile setup. Please try again or contact an administrator.')
       .setColor(0xFF6B6B);
     
     await user.send({ embeds: [errorEmbed] }).catch(() => {});
@@ -2414,6 +3457,84 @@ async function handleTestLangCommand(interaction) {
   }
 }
 
+async function handleFlagsCommand(interaction) {
+  const embed = new EmbedBuilder()
+    .setTitle('🌍 Supported Country Flags for Translation')
+    .setDescription('🎯 **Two ways to translate:**\n• **Reply** to a message with a flag emoji\n• **React** to a message with a flag emoji\n\nBoth methods work the same way!')
+    .addFields([
+      { 
+        name: '🇺🇸 English Speaking Countries', 
+        value: '🇺🇸🇬🇧🇨🇦🇦🇺🇳🇿🇮🇪🇿🇦🇯🇲🇹🇹🇧🇸🇧🇧🇬🇩🇱🇨🇻🇨🇦🇬🇩🇲🇰🇳🇬🇾🇧🇿🇲🇹🇸🇬🇭🇰🇵🇭🇮🇳🇳🇬🇰🇪🇺🇬🇬🇭🇹🇿🇿🇼🇧🇼🇿🇲🇲🇼🇸🇿🇱🇸🇳🇦🇱🇷🇸🇱🇬🇲🇫🇯🇻🇺🇸🇧🇵🇬🇼🇸🇹🇴🇰🇮🇹🇻🇳🇷🇵🇼🇲🇭🇫🇲', 
+        inline: false 
+      },
+      { 
+        name: '🇪🇸 Spanish Speaking Countries', 
+        value: '🇪🇸🇲🇽🇦🇷🇨🇱🇨🇴🇵🇪🇻🇪🇺🇾🇪🇨🇧🇴🇵🇾🇬🇹🇨🇷🇵🇦🇳🇮🇭🇳🇸🇻🇩🇴🇨🇺🇵🇷🇬🇶', 
+        inline: false 
+      },
+      { 
+        name: '🇫🇷 French Speaking Countries', 
+        value: '🇫🇷🇧🇪🇨🇭🇱🇺🇲🇨🇸🇳🇲🇱🇧🇫🇳🇪🇹🇩🇨🇫🇨🇲🇬🇦🇨🇬🇨🇩🇧🇯🇹🇬🇨🇮🇬🇳🇲🇬🇰🇲🇸🇨🇩🇯🇭🇹🇻🇺', 
+        inline: false 
+      },
+      { 
+        name: '🇩🇪 German Speaking', 
+        value: '🇩🇪🇦🇹🇱🇮', 
+        inline: true 
+      },
+      { 
+        name: '🇵🇹 Portuguese Speaking', 
+        value: '🇵🇹🇧🇷🇦🇴🇲🇿🇬🇼🇨🇻🇸🇹🇹🇱🇲🇴', 
+        inline: true 
+      },
+      { 
+        name: '🇮🇹 Italian Speaking', 
+        value: '🇮🇹🇻🇦🇸🇲', 
+        inline: true 
+      },
+      { 
+        name: '🇷🇺 Russian Speaking', 
+        value: '🇷🇺🇧🇾🇰🇿🇰🇬🇹🇯', 
+        inline: true 
+      },
+      { 
+        name: '🇸🇦 Arabic Speaking', 
+        value: '🇸🇦🇦🇪🇪🇬🇮🇶🇯🇴🇱🇧🇸🇾🇾🇪🇴🇲🇰🇼🇶🇦🇧🇭🇲🇦🇹🇳🇩🇿🇱🇾🇸🇩🇸🇸🇪🇷🇩🇯🇰🇲🇲🇷🇵🇸', 
+        inline: true 
+      },
+      { 
+        name: '🇳🇱 Dutch Speaking', 
+        value: '🇳🇱🇸🇷🇦🇼🇨🇼🇸🇽', 
+        inline: true 
+      },
+      { 
+        name: '🌏 Asian Languages', 
+        value: '🇯🇵 Japanese • 🇨🇳🇹🇼 Chinese • 🇰🇷 Korean • 🇹🇭 Thai • 🇻🇳 Vietnamese\n🇮🇩 Indonesian • 🇲🇾 Malay • 🇵🇭 Filipino • 🇮🇳 Hindi/Bengali • 🇵🇰 Urdu\n🇰🇭 Khmer • 🇱🇦 Lao • 🇲🇲 Myanmar • 🇳🇵 Nepali • 🇱🇰 Sinhala • 🇧🇩 Bengali\n🇦🇫 Persian/Dari • 🇮🇷 Persian • 🇲🇳 Mongolian', 
+        inline: false 
+      },
+      { 
+        name: '🌍 European Languages', 
+        value: '🇵🇱 Polish • 🇸🇪 Swedish • 🇳🇴 Norwegian • 🇩🇰 Danish • 🇫🇮 Finnish • 🇮🇸 Icelandic\n🇨🇿 Czech • 🇸🇰 Slovak • 🇭🇺 Hungarian • 🇷🇴🇲🇩 Romanian • 🇧🇬 Bulgarian\n🇬🇷🇨🇾 Greek • 🇮🇱 Hebrew • 🇹🇷 Turkish • 🇺🇦 Ukrainian • 🇭🇷 Croatian\n🇷🇸 Serbian • 🇧🇦 Bosnian • 🇸🇮 Slovenian • 🇦🇱🇽🇰 Albanian • 🇲🇰 Macedonian\n🇱🇻 Latvian • 🇱🇹 Lithuanian • 🇪🇪 Estonian • 🇦🇲 Armenian • 🇬🇪 Georgian\n🇦🇿 Azerbaijani • 🇺🇿 Uzbek • 🇹🇲 Turkmen', 
+        inline: false 
+      },
+      { 
+        name: '🌍 African Languages', 
+        value: '🇿🇦 Afrikaans/Zulu/Xhosa • 🇰🇪🇹🇿🇺🇬 Swahili • 🇳🇬 Hausa/Yoruba/Igbo\n🇪🇹 Amharic • 🇷🇼 Kinyarwanda • 🇧🇮 Kirundi • 🇲🇬 Malagasy', 
+        inline: false 
+      },
+      { 
+        name: '🏝️ Regional & Celtic Languages', 
+        value: '🇬🇧 Welsh/Scottish Gaelic • 🇮🇪 Irish Gaelic • 🇦🇩 Catalan • 🇪🇸 Basque/Galician\n🇱🇺 Luxembourgish • 🇫🇴 Faroese • 🇬🇱 Greenlandic', 
+        inline: false 
+      }
+    ])
+    .setColor(0x00FF7F)
+    .setFooter({ text: '🎯 Total: 150+ country flags supported! Reply OR react to any message with a flag emoji!' })
+    .setTimestamp();
+  
+  await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
+}
+
 async function handleHelpCommand(interaction) {
   const embed = new EmbedBuilder()
     .setTitle('🤖 Bot Help & Commands')
@@ -2425,8 +3546,13 @@ async function handleHelpCommand(interaction) {
         inline: true 
       },
       { 
-        name: '🌐 Translation Commands', 
-        value: '`/setlang <language>` - Set your language\n`/getlang` - View current language\n`/autotranslate` - Server translation (Admin)', 
+        name: '� Flag Translation System', 
+        value: '**Two easy ways to translate any message:**\n\n🎯 **Method 1:** Reply to a message with a flag emoji\n🎯 **Method 2:** React to a message with a flag emoji\n\n🇺🇸🇬🇧🇨🇦 English • 🇪🇸🇲🇽🇦🇷 Spanish • 🇫🇷🇧🇪 French • 🇩🇪🇦🇹 German\n🇮🇹🇵🇹🇧🇷 Italian/Portuguese • 🇷🇺🇯🇵🇨🇳🇰🇷 Russian/Japanese/Chinese/Korean\n🇸🇦🇹🇭🇻🇳🇮🇩 Arabic/Thai/Vietnamese/Indonesian • **And 150+ more!**\n\n**Examples:**\n• Reply to "Hello" with 🇪🇸 → Get Spanish translation\n• React to "Hola" with 🇺🇸 → Get English translation', 
+        inline: false 
+      },
+      { 
+        name: '🌐 Other Translation', 
+        value: '`/setlang <language>` - Set your language\n`/getlang` - View current language\n`/get-translation` - Get private translation', 
         inline: true 
       },
       { 
@@ -2446,7 +3572,12 @@ async function handleHelpCommand(interaction) {
       },
       { 
         name: '🎯 Getting Started', 
-        value: '1. Use `/verify` to get verified\n2. Complete `/profile` with your info\n3. Choose `/alliance`\n4. Set `/setlang` for translations', 
+        value: '1. Use `/verify` to get verified\n2. Complete `/profile` with your info\n3. Choose `/alliance`\n4. Reply to messages with flag emojis OR react to messages with flag emojis for instant translations!', 
+        inline: false 
+      },
+      { 
+        name: '🏁 Quick Translation Guide', 
+        value: '• Find a message you want translated\n• **Reply** to it with a country flag emoji (🇺🇸 🇪🇸 🇫🇷 etc.) OR\n• **React** to it with a country flag emoji\n• Get your private translation that auto-deletes in 45 seconds!\n• Works with 150+ country flags!', 
         inline: false 
       },
       { 
@@ -2458,6 +3589,103 @@ async function handleHelpCommand(interaction) {
     .setTimestamp();
   
   await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
+}
+
+async function handleGetTranslationCommand(interaction) {
+  try {
+    const userId = interaction.user.id;
+    const channelId = interaction.channel.id;
+    const translationKey = `${userId}_${channelId}`;
+    
+    // Check if user has a pending translation in this channel
+    if (!client.userTranslations || !client.userTranslations.has(translationKey)) {
+      return await interaction.reply({
+        content: '❌ No translation available for you in this channel.',
+        flags: MessageFlags.Ephemeral
+      });
+    }
+    
+    const translationData = client.userTranslations.get(translationKey);
+    
+    // Create the ephemeral translation embed
+    const translationEmbed = new EmbedBuilder()
+      .setAuthor({ 
+        name: `Translation`,
+        iconURL: translationData.authorAvatar
+      })
+      .setDescription(`**${translationData.originalAuthor}:** ${translationData.originalText}\n\n**Translation (${translationData.fromLang} → ${translationData.toLang}):** ${translationData.translatedText}`)
+      .setColor(0x00AE86)
+      .setTimestamp(translationData.timestamp)
+      .setFooter({ text: `Only you can see this • Auto-translation` });
+
+    // Send the truly ephemeral response
+    await interaction.reply({
+      embeds: [translationEmbed],
+      flags: MessageFlags.Ephemeral
+    });
+    
+    // Start 45-second timer only after user views it (and if they're online)
+    const isOnline = isUserOnline(interaction.guild, userId);
+    
+    if (isOnline) {
+      // User is online, start 45-second timer immediately
+      setTimeout(async () => {
+        try {
+          await interaction.followUp({
+            content: '⏰ Translation has expired.',
+            flags: MessageFlags.Ephemeral
+          });
+        } catch (error) {
+          // User might have left or interaction expired
+        }
+      }, 45000); // 45 seconds
+      
+      logTranslation(`Ephemeral translation sent to ${userId} - 45s timer started (user online)`);
+    } else {
+      // Monitor for when user comes online
+      const checkUserStatus = setInterval(async () => {
+        const isNowOnline = isUserOnline(interaction.guild, userId);
+        if (isNowOnline) {
+          clearInterval(checkUserStatus);
+          
+          // Start 45-second timer now that user is online
+          setTimeout(async () => {
+            try {
+              await interaction.followUp({
+                content: '⏰ Translation has expired.',
+                flags: MessageFlags.Ephemeral
+              });
+            } catch (error) {
+              // User might have left or interaction expired
+            }
+          }, 45000); // 45 seconds
+          
+          logTranslation(`Translation timer started for ${userId} (user came online)`);
+        }
+      }, 5000); // Check every 5 seconds
+      
+      // Stop checking after 10 minutes
+      setTimeout(() => {
+        clearInterval(checkUserStatus);
+      }, 600000); // 10 minutes
+      
+      logTranslation(`Ephemeral translation sent to ${userId} - waiting for user to come online`);
+    }
+    
+    // Remove the translation from storage after user views it
+    client.userTranslations.delete(translationKey);
+    
+  } catch (error) {
+    console.error('Error in handleGetTranslationCommand:', error);
+    try {
+      await interaction.reply({
+        content: '❌ An error occurred while retrieving your translation.',
+        flags: MessageFlags.Ephemeral
+      });
+    } catch (replyError) {
+      console.error('Error sending error reply:', replyError);
+    }
+  }
 }
 
 // Button handler
@@ -2818,3 +4046,5 @@ async function handleContextMenu(interaction) {
 
 // Login to Discord
 client.login(process.env.BOT_TOKEN || process.env.DISCORD_TOKEN);
+
+

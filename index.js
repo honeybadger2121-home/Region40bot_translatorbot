@@ -1840,16 +1840,32 @@ client.on('messageCreate', async (message) => {
 
 // Interaction handler
 client.on('interactionCreate', async (interaction) => {
-  if (interaction.isChatInputCommand()) {
-    await handleSlashCommand(interaction);
-  } else if (interaction.isButton()) {
-    await handleButton(interaction);
-  } else if (interaction.isStringSelectMenu()) {
-    await handleSelectMenu(interaction);
-  } else if (interaction.isModalSubmit()) {
-    await handleModal(interaction);
-  } else if (interaction.isMessageContextMenuCommand()) {
-    await handleContextMenu(interaction);
+  try {
+    if (interaction.isChatInputCommand()) {
+      await handleSlashCommand(interaction);
+    } else if (interaction.isButton()) {
+      await handleButton(interaction);
+    } else if (interaction.isStringSelectMenu()) {
+      await handleSelectMenu(interaction);
+    } else if (interaction.isModalSubmit()) {
+      await handleModal(interaction);
+    } else if (interaction.isMessageContextMenuCommand()) {
+      await handleContextMenu(interaction);
+    }
+  } catch (error) {
+    console.error('Error handling interaction:', error);
+    
+    // Try to respond with an error message if interaction hasn't been handled
+    if (!interaction.replied && !interaction.deferred) {
+      try {
+        await interaction.reply({ 
+          content: 'An error occurred while processing your request. Please try again.', 
+          flags: MessageFlags.Ephemeral 
+        });
+      } catch (replyError) {
+        console.error('Failed to send error reply (interaction may have expired):', replyError.message);
+      }
+    }
   }
 });
 
@@ -3983,10 +3999,34 @@ async function handleContextMenu(interaction) {
       await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
     } catch (error) {
       console.error('Error handling context menu translation:', error);
-      await interaction.reply({ content: 'Error translating message.', flags: MessageFlags.Ephemeral });
+      
+      // Check if the interaction is still valid before trying to respond
+      if (!interaction.replied && !interaction.deferred) {
+        try {
+          await interaction.reply({ content: 'Error translating message.', flags: MessageFlags.Ephemeral });
+        } catch (replyError) {
+          console.error('Failed to send error reply (interaction may have expired):', replyError.message);
+        }
+      } else {
+        console.log('Interaction already replied to or expired, skipping error response');
+      }
     }
   }
 }
+
+// Global error handlers to prevent crashes
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception:', error);
+});
+
+// Discord client error handler
+client.on('error', (error) => {
+  console.error('Discord client error:', error);
+});
 
 // Login to Discord
 client.login(process.env.BOT_TOKEN || process.env.DISCORD_TOKEN);

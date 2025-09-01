@@ -4017,15 +4017,44 @@ async function handleContextMenu(interaction) {
 // Global error handlers to prevent crashes
 process.on('unhandledRejection', (reason, promise) => {
   console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  // Log but don't crash for unhandled rejections
 });
 
 process.on('uncaughtException', (error) => {
   console.error('Uncaught Exception:', error);
+  console.log('Bot will restart in 3 seconds...');
+  
+  // Graceful shutdown
+  setTimeout(() => {
+    console.log('Restarting bot...');
+    process.exit(1); // Exit with error code to trigger restart
+  }, 3000);
 });
 
 // Discord client error handler
 client.on('error', (error) => {
   console.error('Discord client error:', error);
+  
+  // For critical Discord connection errors, restart
+  if (error.code === 'ENOTFOUND' || error.code === 'ECONNRESET') {
+    console.log('Critical connection error - restarting bot in 5 seconds...');
+    setTimeout(() => {
+      process.exit(1);
+    }, 5000);
+  }
+});
+
+// Handle process signals for graceful shutdown
+process.on('SIGINT', () => {
+  console.log('\n🛑 Received SIGINT - shutting down gracefully...');
+  client.destroy();
+  process.exit(0);
+});
+
+process.on('SIGTERM', () => {
+  console.log('\n🛑 Received SIGTERM - shutting down gracefully...');
+  client.destroy();
+  process.exit(0);
 });
 
 // Login to Discord

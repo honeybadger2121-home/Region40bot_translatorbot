@@ -3002,8 +3002,24 @@ async function handleTermsCommand(interaction) {
 
 async function handleCheckPermsCommand(interaction) {
   try {
-    // Check if guild and members are available
-    if (!interaction.guild || !interaction.guild.members) {
+    // Check if this interaction is happening in DMs
+    if (!interaction.guild) {
+      const embed = new EmbedBuilder()
+        .setTitle('🔧 Permission Check - DM Mode')
+        .setDescription('This command provides more detailed information when used in a server.')
+        .addFields([
+          { name: 'Bot Status', value: '✅ Online and responding to DMs' },
+          { name: 'Translation', value: '✅ Flag-based translation available' },
+          { name: 'User Commands', value: '✅ Profile, verification, and language commands work in DMs' },
+          { name: 'Server Features', value: 'Role management and server-specific features require server context' }
+        ])
+        .setColor(0x00AE86);
+      
+      return interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
+    }
+
+    // Check if guild members are available
+    if (!interaction.guild.members) {
       return interaction.reply({ 
         content: '❌ Unable to access guild information. Please try again.', 
         flags: MessageFlags.Ephemeral 
@@ -3777,12 +3793,22 @@ async function handleSelectMenu(interaction) {
     };
     
     try {
-      // Check if guild and member exist
+      // Check if this is in a server context for role assignment
       if (!interaction.guild || !interaction.guild.members) {
-        return interaction.reply({ 
-          content: '❌ Unable to access guild information. Please try again.', 
-          flags: MessageFlags.Ephemeral 
-        });
+        // If in DMs, just update the database without role assignment
+        const selectedAllianceName = allianceNames[alliance];
+        
+        await dbHelpers.updateUserProfile(interaction.user.id, { alliance });
+        
+        const embed = new EmbedBuilder()
+          .setTitle('✅ Alliance Updated!')
+          .setDescription(`You have selected **${selectedAllianceName}** as your alliance.`)
+          .addFields([
+            { name: 'Note', value: 'Role assignment will happen when you next interact in the server.' }
+          ])
+          .setColor(0x00AE86);
+        
+        return interaction.update({ embeds: [embed], components: [] });
       }
 
       const member = interaction.guild.members.cache.get(interaction.user.id);

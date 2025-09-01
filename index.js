@@ -25,7 +25,6 @@ const path = require('path');
 const fs = require('fs');
 const cron = require('node-cron');
 const translateAPI = require('@vitalets/google-translate-api');
-const { joinVoiceChannel, EndBehaviorType, createAudioReceiver } = require('@discordjs/voice');
 
 // Create logs directory if it doesn't exist
 const logsDir = path.join(__dirname, 'logs');
@@ -65,7 +64,6 @@ const client = new Client({
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
     GatewayIntentBits.GuildMembers,
-    GatewayIntentBits.GuildVoiceStates,
     GatewayIntentBits.DirectMessages,
     GatewayIntentBits.GuildMessageReactions
   ],
@@ -1129,41 +1127,6 @@ const commands = [
     name: 'getlang',
     description: 'View your current language settings'
   },
-  {
-    name: 'autotranslate',
-    description: 'Configure auto-translation settings',
-    options: [{
-      name: 'enable',
-      type: 1, // SUB_COMMAND
-      description: 'Enable auto-translation',
-      options: [{
-        name: 'mode',
-        type: 3, // STRING
-        description: 'Translation mode',
-        required: true,
-        choices: [
-          { name: 'Personal (DM)', value: 'personal' },
-          { name: 'Server-wide', value: 'server' }
-        ]
-      }]
-    }, {
-      name: 'disable',
-      type: 1, // SUB_COMMAND
-      description: 'Disable auto-translation'
-    }, {
-      name: 'status',
-      type: 1, // SUB_COMMAND
-      description: 'Check auto-translation status'
-    }]
-  },
-  {
-    name: 'startvoice',
-    description: 'Start voice translation in your current voice channel'
-  },
-  {
-    name: 'stopvoice',
-    description: 'Stop voice translation'
-  },
   
   // Admin commands
   {
@@ -1188,8 +1151,9 @@ const commands = [
       choices: [
         { name: 'Add not-onboarded role', value: 'add_role' },
         { name: 'Remove not-onboarded role', value: 'remove_role' },
-        { name: 'Reset verification', value: 'reset_verification' },
-        { name: 'Force verify', value: 'force_verify' }
+        { name: 'Force verify', value: 'force_verify' },
+        { name: 'Start onboarding profile', value: 'start_onboarding' },
+        { name: 'Reset verification', value: 'reset_verification' }
       ]
     }]
   },
@@ -2080,15 +2044,6 @@ async function handleSlashCommand(interaction) {
       case 'getlang':
         await handleGetLangCommand(interaction);
         break;
-      case 'autotranslate':
-        await handleAutoTranslateCommand(interaction);
-        break;
-      case 'startvoice':
-        await handleStartVoiceCommand(interaction);
-        break;
-      case 'stopvoice':
-        await handleStopVoiceCommand(interaction);
-        break;
       case 'stats':
         await handleStatsCommand(interaction);
         break;
@@ -2270,19 +2225,22 @@ async function handleSetLangCommand(interaction) {
   if (['none', 'off', 'disable', 'stop'].includes(langInput)) {
     try {
       await dbHelpers.updateUserProfile(interaction.user.id, { 
-        language: 'en', 
-        autoTranslate: 0 
+        language: 'en'
       });
       
       const embed = new EmbedBuilder()
-        .setTitle('🚫 Auto-Translation Disabled')
-        .setDescription('Your auto-translation has been turned off.')
+        .setTitle('🚫 Language Preference Cleared')
+        .setDescription('Your language preference has been reset to English.')
+        .addFields([
+          { name: '🏴 Translation Available', value: 'You can still translate messages by reacting with country flags' },
+          { name: '🔄 Set Language Again', value: 'Use `/setlang <language>` anytime to set a new preference' }
+        ])
         .setColor(0xFF6B6B);
       
       return interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
     } catch (error) {
-      console.error('Error disabling translation:', error);
-      return interaction.reply({ content: 'Error disabling auto-translation.', flags: MessageFlags.Ephemeral });
+      console.error('Error clearing language:', error);
+      return interaction.reply({ content: 'Error clearing language preference.', flags: MessageFlags.Ephemeral });
     }
   }
   
@@ -2317,13 +2275,11 @@ async function handleSetLangCommand(interaction) {
     let userProfile = await dbHelpers.getUserProfile(interaction.user.id);
     if (!userProfile) {
       await dbHelpers.setUserProfile(interaction.user.id, { 
-        language: lang, 
-        autoTranslate: 1 
+        language: lang
       });
     } else {
       await dbHelpers.updateUserProfile(interaction.user.id, { 
-        language: lang, 
-        autoTranslate: 1 
+        language: lang
       });
     }
     
@@ -2331,13 +2287,13 @@ async function handleSetLangCommand(interaction) {
     const langName = Object.keys(languageMap).find(key => languageMap[key] === lang) || lang;
     
     const embed = new EmbedBuilder()
-      .setTitle('🌐 Language Set Successfully!')
+      .setTitle('🌐 Language Preference Set!')
       .setDescription(`Your preferred language has been set to **${langName}** (${lang})`)
       .addFields([
-        { name: '✅ Auto-Translation Enabled', value: 'You will receive automatic translations in the same channel' },
-        { name: '🔄 Change Language', value: 'Use `/setlang <language>` to change' },
-        { name: '🚫 Disable', value: 'Use `/setlang off` to turn off auto-translation' },
-        { name: '🧪 Test Translation', value: 'Try right-clicking any message → "Translate Message"' }
+        { name: '🏴 Flag Translation', value: 'React with country flags (🇺🇸🇪🇸🇫🇷🇩🇪) on any message to translate' },
+        { name: '� Context Menu', value: 'Right-click any message → "Translate Message" for quick translation' },
+        { name: '� Change Language', value: 'Use `/setlang <language>` to change your preference' },
+        { name: '📋 View Flags', value: 'Use `/flags` to see all available country flags' }
       ])
       .setColor(0x00AE86);
     
@@ -2354,14 +2310,14 @@ async function handleGetLangCommand(interaction) {
   try {
     const userProfile = await dbHelpers.getUserProfile(interaction.user.id);
     
-    if (userProfile && userProfile.language && userProfile.autoTranslate) {
+    if (userProfile && userProfile.language) {
       const embed = new EmbedBuilder()
         .setTitle('🌐 Your Language Settings')
         .addFields([
-          { name: 'Preferred Language:', value: `**${userProfile.language}** (Auto-translation enabled)` },
-          { name: 'Status:', value: '✅ You will receive automatic translations in the same channel' },
+          { name: 'Preferred Language:', value: `**${userProfile.language}**` },
+          { name: 'Translation Method:', value: '🏴 React with country flags to translate messages' },
           { name: 'Change Language:', value: 'Use `/setlang <language>` to change' },
-          { name: 'Disable:', value: 'Use `/setlang off` to turn off auto-translation' }
+          { name: 'How to Translate:', value: 'React with any country flag on messages to translate to that language' }
         ])
         .setColor(0x00AE86);
       
@@ -2369,9 +2325,10 @@ async function handleGetLangCommand(interaction) {
     } else {
       const embed = new EmbedBuilder()
         .setTitle('🌐 Language Settings')
-        .setDescription('You haven\'t set up auto-translation yet.')
+        .setDescription('You haven\'t set up your language preference yet.')
         .addFields([
-          { name: 'Set Language:', value: 'Use `/setlang <language>` to enable auto-translation' },
+          { name: 'Set Language:', value: 'Use `/setlang <language>` to set your language preference' },
+          { name: 'Translation:', value: 'React with country flags 🇺🇸🇪🇸🇫🇷🇩🇪 on any message to translate' },
           { name: 'Supported Languages:', value: 'English, Spanish, French, German, Italian, Portuguese, Russian, Japanese, Chinese, Korean, Arabic, and many more!' }
         ])
         .setColor(0xFFD700);
@@ -2382,109 +2339,6 @@ async function handleGetLangCommand(interaction) {
     console.error('Error getting language:', error);
     await interaction.reply({ content: 'Error retrieving your language preference.', flags: MessageFlags.Ephemeral });
   }
-}
-
-async function handleAutoTranslateCommand(interaction) {
-  const subcommand = interaction.options.getSubcommand();
-  
-  // Check if interaction.member exists and has permissions
-  if (!interaction.member || !interaction.member.permissions || !interaction.member.permissions.has(PermissionsBitField.Flags.ManageGuild)) {
-    return interaction.reply({ 
-      content: '❌ You need "Manage Server" permission to use this command.', 
-      flags: MessageFlags.Ephemeral 
-    });
-  }
-  
-  try {
-    switch (subcommand) {
-      case 'enable':
-        const mode = interaction.options.getString('mode');
-        if (mode === 'server') {
-          await dbHelpers.setGuildSettings(interaction.guild.id, {
-            autoTranslateEnabled: 1,
-            targetLanguage: 'en'
-          });
-          
-          const embed = new EmbedBuilder()
-            .setTitle('✅ Server-wide Auto-Translation Enabled')
-            .setDescription('All messages will now be automatically translated to English.')
-            .setColor(0x00AE86);
-          
-          await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
-        } else {
-          const embed = new EmbedBuilder()
-            .setTitle('ℹ️ Personal Auto-Translation')
-            .setDescription('Users can enable personal auto-translation using `/setlang <language>`')
-            .setColor(0x00AE86);
-          
-          await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
-        }
-        break;
-        
-      case 'disable':
-        await dbHelpers.setGuildSettings(interaction.guild.id, {
-          autoTranslateEnabled: 0
-        });
-        
-        const disableEmbed = new EmbedBuilder()
-          .setTitle('🚫 Server-wide Auto-Translation Disabled')
-          .setDescription('Server-wide auto-translation has been turned off.')
-          .setColor(0xFF6B6B);
-        
-        await interaction.reply({ embeds: [disableEmbed], flags: MessageFlags.Ephemeral });
-        break;
-        
-      case 'status':
-        const guildSettings = await dbHelpers.getGuildSettings(interaction.guild.id);
-        
-        const statusEmbed = new EmbedBuilder()
-          .setTitle('📊 Auto-Translation Status')
-          .addFields([
-            { 
-              name: 'Server-wide Translation:', 
-              value: guildSettings.autoTranslateEnabled ? '✅ Enabled' : '❌ Disabled' 
-            },
-            { 
-              name: 'Target Language:', 
-              value: guildSettings.targetLanguage || 'en' 
-            },
-            { 
-              name: 'Personal Translation:', 
-              value: 'Users can set with `/setlang`' 
-            }
-          ])
-          .setColor(0x00AE86);
-        
-        await interaction.reply({ embeds: [statusEmbed], flags: MessageFlags.Ephemeral });
-        break;
-    }
-  } catch (error) {
-    console.error('Auto-translate command error:', error);
-    await interaction.reply({ content: 'Error configuring auto-translation.', flags: MessageFlags.Ephemeral });
-  }
-}
-
-async function handleStartVoiceCommand(interaction) {
-  const memberVc = interaction.member.voice.channel;
-  if (!memberVc) {
-    return interaction.reply({ content: '❌ You must be in a voice channel first!', flags: MessageFlags.Ephemeral });
-  }
-  
-  const embed = new EmbedBuilder()
-    .setTitle('🎤 Voice Translation')
-    .setDescription('Voice translation feature is currently in development. Coming soon!')
-    .setColor(0xFFD700);
-  
-  await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
-}
-
-async function handleStopVoiceCommand(interaction) {
-  const embed = new EmbedBuilder()
-    .setTitle('🛑 Voice Translation Stopped')
-    .setDescription('Voice translation has been stopped.')
-    .setColor(0xFF6B6B);
-  
-  await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
 }
 
 async function handleStatsCommand(interaction) {
@@ -2964,6 +2818,32 @@ async function handleManageCommand(interaction) {
           }
         }
         return interaction.reply({ content: `✅ Force verified ${targetUser.username} and removed "not-onboarded" role.`, flags: MessageFlags.Ephemeral });
+        
+      case 'start_onboarding':
+        // Check if user is verified (either manually verified or force verified)
+        const userProfile = await dbHelpers.getUserProfile(targetUser.id);
+        
+        if (!userProfile || !userProfile.verified) {
+          return interaction.reply({ 
+            content: `❌ User ${targetUser.username} must be verified first. Use the "Force verify" action or have them complete verification.`, 
+            flags: MessageFlags.Ephemeral 
+          });
+        }
+        
+        // Start the onboarding process
+        try {
+          await startAutomatedOnboarding(targetUser);
+          return interaction.reply({ 
+            content: `✅ Started onboarding profile setup for ${targetUser.username}. They will receive a DM with profile setup instructions.`, 
+            flags: MessageFlags.Ephemeral 
+          });
+        } catch (onboardingError) {
+          console.error('Error starting onboarding:', onboardingError);
+          return interaction.reply({ 
+            content: `❌ Failed to start onboarding for ${targetUser.username}. They may have DMs disabled or an error occurred.`, 
+            flags: MessageFlags.Ephemeral 
+          });
+        }
         
       default:
         return interaction.reply({ content: '❌ Invalid action.', flags: MessageFlags.Ephemeral });
@@ -3595,7 +3475,7 @@ async function handleHelpCommand(interaction) {
       },
       { 
         name: '🛠️ Admin Commands', 
-        value: '`/stats` - Server statistics\n`/setup` - Configure channels\n`/autotranslate` - Translation settings', 
+        value: '`/stats` - Server statistics\n`/setup` - Configure channels\n`/manage` - Advanced admin options', 
         inline: true 
       },
       { 
